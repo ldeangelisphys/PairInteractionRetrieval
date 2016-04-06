@@ -11,13 +11,20 @@ def get_g(file_name):
 def init_V(g):
     """Initialize the potential with the effective potential function approximation"""
     return -np.log(g)
+
+def initialize_system(N_particles,L_box,dim,how):
+    """Initialize a list of positions of N particles in a box of size L"""
     
+    if how == 'random':
+        particles = np.random.rand(N_particles,2)*L_box
+    
+    return particles
     
 def MC_sim():
     """Performs a Monte Carlo simulation"""
 
     # Initialize the system
-    particles = initialize_system(N_particles,L_box,'random')
+    particles = initialize_system(N_particles,L_box,dim,'random')
 
     for n in range(N_iterations):
         
