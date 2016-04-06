@@ -13,16 +13,32 @@ def init_V(g):
     return -np.log(g)
     
     
-def MC_sim:
+def MC_sim():
     """Performs a Monte Carlo simulation"""
 
     # Initialize the system
+    particles = initialize_system(N_particles,L_box,'random')
 
-    for i in range(N_iterations):    
+    for n in range(N_iterations):
+        
         #Propose a movement
-    
+        i = random_particle
         #Calculate the difference in energy
-
+        other_particles = particles
+        other_particles.pop(i)
+        old_particle = particles[i]
+        new_particle = particles[i] + dr
+        dE = np.sum(potential(np.abs(other_particles - new_particle)) - potential(np.abs(other_particles - old_particle)))
         #Accept or decline the movement
-
+        acc_prob = np.min(1,np.exp(-dE))
+        if random_list[n] < acc_prob:
+            # perform the movement
+            particles[i] = particles[i] + dr 
+            # update observables
+            E += dE
+            # And count the MC move
+            MC_move += 1
+    
+    
     return particles
+            
