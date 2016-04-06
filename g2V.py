@@ -13,34 +13,40 @@ def init_V(g):
     return -np.log(g)
 
 def initialize_system(N_particles,L_box,dim,how):
-    """Initialize a list of positions of N particles in a box of size L"""
+    """Initialize an array of positions of N particles in a box of size L"""
     
     if how == 'random':
         particles = np.random.rand(N_particles,2)*L_box
     
     return particles
     
-def MC_sim():
+def MC_sim(N_particles,L_box,dim,N_iterations):
     """Performs a Monte Carlo simulation"""
 
     # Initialize the system
     particles = initialize_system(N_particles,L_box,dim,'random')
+    E = 0 #TODO    
+    
+    # Initialize N_iterations random extractions
+    random_extraction = np.random.rand(N_iterations)
+    
+    MC_move = 0
 
     for n in range(N_iterations):
         
         #Propose a movement
-        i = random_particle
+        chosen_one = np.random.randint(N_particles)
+        dr = np.random.rand(dim)
         #Calculate the difference in energy
-        other_particles = particles
-        other_particles.pop(i)
-        old_particle = particles[i]
-        new_particle = particles[i] + dr
+        other_particles = np.delete(particles,chosen_one,0)
+        old_particle = particles[chosen_one]
+        new_particle = old_particle + dr
         dE = np.sum(potential(np.abs(other_particles - new_particle)) - potential(np.abs(other_particles - old_particle)))
         #Accept or decline the movement
         acc_prob = np.min(1,np.exp(-dE))
-        if random_list[n] < acc_prob:
+        if random_extraction[n] < acc_prob:
             # perform the movement
-            particles[i] = particles[i] + dr 
+            particles[chosen_one] += dr 
             # update observables
             E += dE
             # And count the MC move
