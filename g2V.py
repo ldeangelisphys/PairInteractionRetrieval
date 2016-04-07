@@ -3,6 +3,14 @@ import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
 import time
 
+class par:
+    def __init__(self):
+        self.r = 0
+        self.v = 0
+        self.bin = 0
+
+
+
 def pair_correlation_function_2D(kind, x, y, S, rMax, dr): 
     """
     Compute the two-dimensional pair correlation function, also known 
@@ -247,9 +255,9 @@ def calc_distances(elements,ref,L_box,R_cut):
 
     return distances    
     
+
     
-    
-def MC_sim(particles,L_box,N_iterations,potential,R_cut):
+def MC_sim(particles,L_box,N_iterations,v,R_cut):
     """Performs a Monte Carlo simulation"""
 
     (N_particles,dim) = np.shape(particles)
@@ -274,7 +282,10 @@ def MC_sim(particles,L_box,N_iterations,potential,R_cut):
         # Particles at a distance > R_cut don't contribute to the energy
         old_distances = calc_distances(other_particles,old_particle,L_box,R_cut)   
         new_distances = calc_distances(other_particles,new_particle,L_box,R_cut)
-        dE = np.sum(potential(new_distances)) - np.sum(potential(old_distances))
+        old_histo,bins  = np.histogram(old_distances, bins = v.bin)
+        new_histo,bins  = np.histogram(new_distances, bins = v.bin)
+        dE = np.sum((new_histo-old_histo)*v.v)
+        #dE = np.sum(potential(new_distances)) - np.sum(potential(old_distances))
         #Accept or decline the movement
         acc_prob = np.min([1,np.exp(-dE)])
         if random_extraction[n] < acc_prob:
@@ -292,10 +303,14 @@ def MC_sim(particles,L_box,N_iterations,potential,R_cut):
 
     return particles,E
             
-def test_program():
+def test_montecarlo():
     """ Test the MC simulation using the example in hte paper byLyubartsev and Laaksonen"""
-    r,v = get_g('/home/deangelis/DATA/ReverseMC/vtest.dat')
-    v_f = interp1d(r,v)
+    
+    v = par()    
+    
+    v.r,v.v = get_g('/home/deangelis/DATA/ReverseMC/vtest.dat')
+    v.bin = np.append(0,np.append(0.5*(v.r[1:]+v.r[:-1]),float('Inf')))  
+    #v_f = interp1d(r,v)
 
     L_box = 20
     N_particles = 50
@@ -303,7 +318,7 @@ def test_program():
     # Initialize the system at a random distribution
     starting = initialize_system(N_particles,L_box,dim,'random')
 
-    particles,E = MC_sim(starting,L_box,10000000,v_f,r[-1])
+    particles,E = MC_sim(starting,L_box,100000,v,v.r[-1])
     
     
     #Replicate the system that I considered periodic
@@ -329,7 +344,8 @@ def test_program():
 if __name__ == '__main__':
 
     start = time.time()
-    particles,E = test_program()
+    particles,E = test_montecarlo()    
+    
     end = time.time()
     duration = end - start
     print 'Done in %.1f s' % duration
