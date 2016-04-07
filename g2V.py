@@ -2,13 +2,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
 import time
+from mpl_toolkits.mplot3d import Axes3D
 
 class par:
     def __init__(self):
         self.r = 0
         self.v = 0
         self.bin = 0
-
 
 
 def pair_correlation_function_2D(kind, x, y, S, rMax, dr): 
@@ -318,7 +318,7 @@ def test_montecarlo():
     # Initialize the system at a random distribution
     starting = initialize_system(N_particles,L_box,dim,'random')
 
-    particles,E = MC_sim(starting,L_box,100000,v,v.r[-1])
+    particles,E = MC_sim(starting,L_box,100,v,v.r[-1])
     
     
     #Replicate the system that I considered periodic
@@ -345,6 +345,8 @@ if __name__ == '__main__':
 
     start = time.time()
     particles,E = test_montecarlo()    
+
+    
     
     end = time.time()
     duration = end - start
