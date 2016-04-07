@@ -124,9 +124,19 @@ def pair_correlation_function_2D(kind, x, y, S, rMax, dr):
         g_average[i] = np.mean(g[:, i]) / (np.pi * (rOuter**2 - rInner**2)) 
 	
 	
-    return (g_average, radii) 
+    return (g_average, radii)
+    
+    
+def replicate_3D(particles,L_box):
+    N,dim = np.shape(particles)
+    shifts = [[0,0,1],[0,0,2],[0,1,0],[0,1,1],[0,1,2],[0,2,0],[0,2,1],[0,2,2],[1,0,0],[1,0,1],[1,0,2],[1,1,0],[1,1,1],[1,1,2],[1,2,0],[1,2,1],[1,2,2],[2,0,0],[2,0,1],[2,0,2],[2,1,0],[2,1,1],[2,1,2],[2,2,0],[2,2,1],[2,2,2]]
+    more_particles = particles
+    for delta in shifts:
+        more_particles = np.append(more_particles,particles + L_box*np.array(delta),axis = 0)
+    return more_particles
 
-def pairCorrelationFunction_3D(x, y, z, S, rMax, dr):
+
+def pair_correlation_function_3D(x, y, z, S, rMax, dr):
     """Compute the three-dimensional pair correlation function for a set of
     spherical particles contained in a cube with side length S.  This simple
     function finds reference particles such that a sphere of radius rMax drawn
@@ -282,31 +292,44 @@ def MC_sim(particles,L_box,N_iterations,potential,R_cut):
 
     return particles,E
             
-            
-            
-if __name__ == '__main__':
-
-
+def test_program():
+    """ Test the MC simulation using the example in hte paper byLyubartsev and Laaksonen"""
     r,v = get_g('/home/deangelis/DATA/ReverseMC/vtest.dat')
     v_f = interp1d(r,v)
 
     L_box = 20
     N_particles = 50
     dim = 3
-
     # Initialize the system at a random distribution
     starting = initialize_system(N_particles,L_box,dim,'random')
-    #[xi,yi,zi] = np.transpose(starting)
-    #plt.scatter(xi,yi)
 
-    start = time.time()
-    particles,E = MC_sim(starting,L_box,10000,v_f,r[-1])
-    end = time.time()
-    duration = end - start
-    print duration
-
-    plt.figure()
-    [x,y,z] = np.transpose(particles)
+    particles,E = MC_sim(starting,L_box,10000000,v_f,r[-1])
+    
+    
+    #Replicate the system that I considered periodic
+    more_particles = replicate_3D(particles,20)
+    #plot it    
+    [xp,yp,zp] = np.transpose(more_particles)
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
-    ax.scatter(x, y, z)
+    ax.scatter(xp, yp, zp)
+    # Calculate pair correlation function
+    gm,rm,im = pair_correlation_function_3D(xp,yp,zp,L_box*3.,9.75,0.5)
+    #And import the paper one
+    rt,gt = get_g('/home/deangelis/DATA/ReverseMC/gtest.dat')
+    #plot it together with the one given by the paper
+    plt.figure()
+    plt.plot(rm,gm)
+    plt.plot(rt,gt)
+    
+    return particles,E
+    
+    
+            
+if __name__ == '__main__':
+
+    start = time.time()
+    particles,E = test_program()
+    end = time.time()
+    duration = end - start
+    print 'Done in %.1f s' % duration
