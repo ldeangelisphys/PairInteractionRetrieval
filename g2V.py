@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
 import time
 
-def pair_correlation_function_2D(kind, x, y, sign, S, rMax, dr): 
+def pair_correlation_function_2D(kind, x, y, S, rMax, dr): 
     """
     Compute the two-dimensional pair correlation function, also known 
     as the radial distribution function, for a set of circular particles 
@@ -125,7 +125,73 @@ def pair_correlation_function_2D(kind, x, y, sign, S, rMax, dr):
 	
 	
     return (g_average, radii) 
-    
+
+def pairCorrelationFunction_3D(x, y, z, S, rMax, dr):
+    """Compute the three-dimensional pair correlation function for a set of
+    spherical particles contained in a cube with side length S.  This simple
+    function finds reference particles such that a sphere of radius rMax drawn
+    around the particle will fit entirely within the cube, eliminating the need
+    to compensate for edge effects.  If no such particles exist, an error is
+    returned.  Try a smaller rMax...or write some code to handle edge effects! ;)
+    Arguments:
+        x               an array of x positions of centers of particles
+        y               an array of y positions of centers of particles
+        z               an array of z positions of centers of particles
+        S               length of each side of the cube in space
+        rMax            outer diameter of largest spherical shell
+        dr              increment for increasing radius of spherical shell
+    Returns a tuple: (g, radii, interior_indices)
+        g(r)            a numpy array containing the correlation function g(r)
+        radii           a numpy array containing the radii of the
+                        spherical shells used to compute g(r)
+        reference_indices   indices of reference particles
+    """
+    from numpy import zeros, sqrt, where, pi, mean, arange, histogram
+
+    # Find particles which are close enough to the cube center that a sphere of radius
+    # rMax will not cross any face of the cube
+    bools1 = x > rMax
+    bools2 = x < (S - rMax)
+    bools3 = y > rMax
+    bools4 = y < (S - rMax)
+    bools5 = z > rMax
+    bools6 = z < (S - rMax)
+
+    interior_indices, = where(bools1 * bools2 * bools3 * bools4 * bools5 * bools6)
+    num_interior_particles = len(interior_indices)
+
+    if num_interior_particles < 1:
+        raise  RuntimeError ("No particles found for which a sphere of radius rMax\
+                will lie entirely within a cube of side length S.  Decrease rMax\
+                or increase the size of the cube.")
+
+    edges = arange(0., rMax + 1.1 * dr, dr)
+    num_increments = len(edges) - 1
+    g = zeros([num_interior_particles, num_increments])
+    radii = zeros(num_increments)
+    numberDensity = len(x) / S**3
+
+    # Compute pairwise correlation for each interior particle
+    for p in range(num_interior_particles):
+        index = interior_indices[p]
+        d = sqrt((x[index] - x)**2 + (y[index] - y)**2 + (z[index] - z)**2)
+        d[index] = 2 * rMax
+
+        (result, bins) = histogram(d, bins=edges, normed=False)
+        g[p,:] = result / numberDensity
+
+    # Average g(r) for all interior particles and compute radii
+    g_average = zeros(num_increments)
+    for i in range(num_increments):
+        radii[i] = (edges[i] + edges[i+1]) / 2.
+        rOuter = edges[i + 1]
+        rInner = edges[i]
+        g_average[i] = mean(g[:, i]) / (4.0 / 3.0 * pi * (rOuter**3 - rInner**3))
+
+    return (g_average, radii, interior_indices)
+    # Number of particles in shell/total number of particles/volume of shell/number density
+    # shell volume = 4/3*pi(r_outer**3-r_inner**3)
+####    
     
 def get_g(file_name):
     """Gets the radial distribution function from file_name"""
@@ -142,7 +208,7 @@ def initialize_system(N_particles,L_box,dim,how):
     """Initialize an array of positions of N particles in a box of size L"""
     
     if how == 'random':
-        particles = np.random.rand(N_particles,2)*L_box
+        particles = np.random.rand(N_particles,dim)*L_box
     
     return particles
 
@@ -226,19 +292,21 @@ if __name__ == '__main__':
 
     L_box = 20
     N_particles = 50
-    dim = 2
+    dim = 3
 
     # Initialize the system at a random distribution
     starting = initialize_system(N_particles,L_box,dim,'random')
-    [xi,yi] = np.transpose(starting)
-    plt.scatter(xi,yi)
+    #[xi,yi,zi] = np.transpose(starting)
+    #plt.scatter(xi,yi)
 
     start = time.time()
-    particles,E = MC_sim(starting,L_box,1000,v_f,r[-1])
+    particles,E = MC_sim(starting,L_box,10000,v_f,r[-1])
     end = time.time()
     duration = end - start
     print duration
 
     plt.figure()
-    [x,y] = np.transpose(particles)
-    plt.scatter(x,y, c = 'g')
+    [x,y,z] = np.transpose(particles)
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    ax.scatter(x, y, z)
