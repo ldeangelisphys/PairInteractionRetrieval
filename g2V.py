@@ -313,14 +313,12 @@ def MC_step(particles,chosen_one,dr,R_cut,v):
 
     return dE,move
             
-def run_montecarlo(n_run, dr_coeff = 0.58):
+def run_montecarlo(v, n_run, dr_coeff = 0.58):
     """ Test the MC simulation using the example in hte paper byLyubartsev and Laaksonen"""
     
-    v = par()
-    
-    v.r,v.v = get_g('D:/Google Drive/Potential Retrieval/vtest.txt')
-    v.bin = np.append(0,np.append(0.5*(v.r[1:]+v.r[:-1]),float('Inf')))
-    R_cut = v.r[-1]
+    start = time.time()
+
+    R_cut = v.r[-1]  # TODO
     #v_f = interp1d(r,v)
 
     g_list = []    
@@ -345,8 +343,13 @@ def run_montecarlo(n_run, dr_coeff = 0.58):
             gmeas = calc_and_plot_g_r(particles,n)
             g_list.append(gmeas)
             
+    elapsed = time.time() - start
+    print('Done in %d s' % elapsed)
+    
+    print('%d %% of the Monte Carlo steps were performed (%d out of %d)' % (100.0*MC_move/N_mcs, MC_move,N_mcs))
 
-    print('%d %% of the Monte Carlo steps were performed (%d out of %d)' % (MC_move/N_mcs, MC_move,N_mcs))
+    plot_conf(particles,N_mcs,i)
+
         
     return particles,E,g_list
     
@@ -454,11 +457,12 @@ def calc_g_average(g_list):
     np.savetxt('D:/Google Drive/Potential Retrieval/final_g/g_av_%dmcs_conv%d_skip%d.txt' % (N_mcs,N_conv,N_corr),np.transpose([r,gav,gstd]), fmt = '%.04f', delimiter = '\t', header = 'r\tg(r)\tsigma(g)')
     
     plt.figure(figsize = (6,4.5))
-    plt.plot(gtheory.r,gtheory.v,label = 'expected')
-    plt.errorbar(r,gav,yerr = gstd,marker = 'o', linestyle = 'None', label = 'measured')
+    plt.plot(gtheory.r,gtheory.v,label = 'expected', zorder = 0)
+    plt.errorbar(r,gav,yerr = gstd,marker = 'o', linestyle = 'None', label = 'measured', zorder = 1)
     plt.xlabel(r'$r$')
     plt.ylabel(r'$g(r)$')
     plt.figtext(0.99, 0.99, git_v, fontsize = 8, ha = 'right', va = 'top')
+    plt.legend()
     plt.savefig('D:/Google Drive/Potential Retrieval/final_g/g_av_%dmcs_conv%d_skip%d.png' % (N_mcs,N_conv,N_corr), dpi = 300)
     plt.close('all')
     
@@ -470,6 +474,7 @@ if __name__ == '__main__':
 
     
     git_v = subprocess.check_output(["git", "rev-parse", "--verify", "--short", "HEAD"])
+    git_v = git_v.strip().decode('UTF-8')
 
     gtheory = par()
     gtheory.r,gtheory.v = get_g('D:/Google Drive/Potential Retrieval/gtest.txt')
@@ -486,22 +491,25 @@ if __name__ == '__main__':
     check_folders_existence('D:/Google Drive/Potential Retrieval/')
 
     
-    
-    start = time.time()
-    
-    g_list = []
-    Energies = {}
-#    for i in range(1):
+    # Define a potential
+    vtest = par()
+    vtest.r,vtest.v = get_g('D:/Google Drive/Potential Retrieval/vtest.txt')
+#    vtest.r,vtest.v = gtheory.r,-np.log(gtheory.v)
+#    vtest.v[0] = 100000
+    vtest.bin = np.append(0,np.append(0.5*(vtest.r[1:]+vtest.r[:-1]),2*L_box))
+
+
+    # If I want to try different dr coefficients
     coeffs = [dr_c]
+    Energies = {}
+
     for i,c in enumerate(coeffs):
+        
+
         #%%
-        start = time.time()
-        particles,E,g_list = run_montecarlo(i, dr_coeff = c)
-        plot_conf(particles,N_mcs,i)
-        elapsed = time.time() - start
-        print('Done in %d s' % elapsed)
-        #%%
+        particles,E,g_list = run_montecarlo(vtest, i, dr_coeff = c)
         Energies[c] = E
+        
 #%% Plot the convergence test
     plot_convergence(Energies,coeffs)
     
