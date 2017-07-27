@@ -356,13 +356,25 @@ def test_montecarlo(N_iter = 1000, dr_coeff = 0.58):
     
     return particles,E,gm
     
+     
+def plot_convergence(Energies,coeffs):
+    fig = plt.figure(figsize = (8,6 ))
+    for c in coeffs:
+        plt.plot(Energies[c], label = c, color = cm.gnuplot(c), linewidth = 2)
+        plt.xscale('log')
+    plt.legend(loc = 3)
+    plt.xlabel('# iteration')
+    plt.ylabel('Energy/KT')
+    plt.savefig('D:/Google Drive/Potential Retrieval/convergence_%dmcs.png' % N_mcs, dpi = 600)
     
+    return
+       
             
 if __name__ == '__main__':
 
     g = par()
     g.r,g.v = get_g('D:/Google Drive/Potential Retrieval/gtest.txt')
-    N_mcs = 50000
+    N_mcs = 500
     
     
     start = time.time()
@@ -382,16 +394,10 @@ if __name__ == '__main__':
         g_list.append(gav)
         Energies[c] = E
 #%% Plot the convergence test
+    plot_convergence(Energies,coeffs)
 
-    fig = plt.figure(figsize = (8,6 ))
-    for c in coeffs:
-        plt.plot(Energies[c], label = c, color = cm.gnuplot(c), linewidth = 2)
-        plt.xscale('log')
-    plt.legend(loc = 3)
-    plt.xlabel('# iteration')
-    plt.ylabel('Energy/KT')
-    plt.savefig('D:/Google Drive/Potential Retrieval/convergence_%dmcs.png' % N_mcs, dpi = 600)
-#%%####
+    
+    #%%####
 
 
 #    g_arr = np.array(g_list)
