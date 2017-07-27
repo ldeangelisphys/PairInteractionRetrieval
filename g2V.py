@@ -476,7 +476,7 @@ def calc_dist_average(g_list, name):
     plt.savefig('D:/Google Drive/Potential Retrieval/final_g/%s_av_%dmcs_conv%d_skip%d.png' % (name,N_mcs,N_conv,N_corr), dpi = 300)
     plt.close('all')
     
-    return
+    return gav,gstd
     
     #%%
             
@@ -488,7 +488,10 @@ if __name__ == '__main__':
 
     gtheory = par()
     gtheory.r,gtheory.v = get_g('D:/Google Drive/Potential Retrieval/gtest.txt')
-    N_mcs = 80000
+    Stheory = gtheory
+    Stheory.v = Stheory.v * 4 * np.pi * Stheory.r**2
+    
+    N_mcs = 80 * 1000
     dr_c = 0.58
     L_box = 20
     N_particles = 50
@@ -527,9 +530,33 @@ if __name__ == '__main__':
 #    check_correlation_at_convergence(Energies[dr_c][N_conv:])
 
 #%% Save the statistical average of g
-    calc_dist_average(g_list,'g')
-    calc_dist_average(S_list,'S')
+    gav,gstd = calc_dist_average(g_list,'g')
+    Sav,Sstd = calc_dist_average(S_list,'S')
     
+#%% Define what part of the calc g can be compared to the known one
+    r_min = np.where(S_list[0].r == Stheory.r[0])[0][0]
+    r_max = np.where(S_list[0].r == Stheory.r[-1])[0][0] + 1
+#%% Perform the retrieval alghorithm
+    
+    S_array = np.array([single_S.v[r_min:r_max] for single_S in S_list])
+    S_av = np.average(S_array, axis = 0)
+    S_cov = np.cov(S_array,rowvar = 0)
+    
+    delta_S = S_av - Stheory.v
+    
+    nskip = 2
+    delta_V = np.linalg.solve(S_cov[nskip:,nskip:],delta_S[nskip:])
+    plt.plot(vtest.r[1:],vtest.v[1:])
+    plt.plot(vtest.r[nskip:],vtest.v[nskip:] + delta_V)
+
+    
+#%%
+    
+    
+    
+
+
+
 
 #%%
 
