@@ -321,7 +321,7 @@ def MC_sim(particles,L_box,N_iterations,dr_coeff,v,R_cut):
 
     return particles,E
             
-def test_montecarlo(N_iter = 1000, dr_coeff = 0.58):
+def run_montecarlo(n_run, N_iter = 1000, dr_coeff = 0.58):
     """ Test the MC simulation using the example in hte paper byLyubartsev and Laaksonen"""
     
     v = par()    
@@ -350,9 +350,13 @@ def test_montecarlo(N_iter = 1000, dr_coeff = 0.58):
     gm,rm,im = pair_correlation_function_3D(xp,yp,zp,L_box*3.,9.75,0.5)
     #And import the paper one
     rt,gt = get_g('D:/Google Drive/Potential Retrieval/gtest.txt')       #plot it together with the one given by the paper
-    plt.figure()
+    plt.figure(figsize = (7,4))
     plt.plot(rm,gm)
     plt.plot(rt,gt)
+    plt.xlabel('r')
+    plt.ylabel('g(r)')
+    plt.savefig('D:/Google Drive/Potential Retrieval/final_g/g_%dmcs_n%d.png' % (N_iter,n_run), dpi = 300)
+    plt.close('all')
     
     return particles,E,gm
     
@@ -368,13 +372,24 @@ def plot_convergence(Energies,coeffs):
     plt.savefig('D:/Google Drive/Potential Retrieval/convergence_%dmcs.png' % N_mcs, dpi = 600)
     
     return
-       
+    
+    
+def plot_conf(particles,N_mcs,n_conf):
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    ax.scatter(particles[:,0],particles[:,1],particles[:,2])
+    ax.set_xlabel('x')
+    ax.set_ylabel('y')
+    ax.set_zlabel('z')
+    plt.savefig('D:/Google Drive/Potential Retrieval/final_configuration/sim_%dmcs_n%d.png' % (N_mcs,n_conf), dpi = 600)
+    
+    return       
             
 if __name__ == '__main__':
 
     g = par()
     g.r,g.v = get_g('D:/Google Drive/Potential Retrieval/gtest.txt')
-    N_mcs = 500
+    N_mcs = 50000
     
     
     start = time.time()
@@ -383,11 +398,11 @@ if __name__ == '__main__':
     Energies = {}
 #    for i in range(1):
     coeffs = [0.5,1.0,1.5]
-    for c in coeffs:
+    for i,c in enumerate(coeffs):
         #%%
         start = time.time()
-        particles,E,gav = test_montecarlo(N_iter = N_mcs, dr_coeff = c)
-        plt.close('all')
+        particles,E,gav = run_montecarlo(i, N_iter = N_mcs, dr_coeff = c)
+        plot_conf(particles,N_mcs,i)
         elapsed = time.time() - start
         print 'Done in %d s' % elapsed
         #%%
@@ -395,10 +410,10 @@ if __name__ == '__main__':
         Energies[c] = E
 #%% Plot the convergence test
     plot_convergence(Energies,coeffs)
-
     
     #%%####
 
+    
 
 #    g_arr = np.array(g_list)
 #    g_av = np.average(g_list, axis = 0)
