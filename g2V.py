@@ -401,7 +401,7 @@ def check_correlation_at_convergence(E_conv, N_display = 20000):
     plt.savefig('D:/Google Drive/Potential Retrieval/after_convergence_Nmcs%d_dr%.2f.png' % (N_mcs,dr_c), dpi = 600)
     plt.close('all')
     
-    interval = 100000
+    interval = N_mcs/5
     shift_lim = 10000
     center = len(E_conv)/2
     sample = E_conv[center-interval/2:center+interval/2]
