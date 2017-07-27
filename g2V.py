@@ -213,13 +213,15 @@ def pair_correlation_function_3D(x, y, z, S, rMax, dr):
 
     # Average g(r) for all interior particles and compute radii
     g_average = zeros(num_increments)
+    S_average = zeros(num_increments)
     for i in range(num_increments):
         radii[i] = (edges[i] + edges[i+1]) / 2.
         rOuter = edges[i + 1]
         rInner = edges[i]
-        g_average[i] = mean(g[:, i]) / (4.0 / 3.0 * pi * (rOuter**3 - rInner**3))
+        S_average[i] = mean(g[:, i])
+        g_average[i] = S_average[i] / (4.0 / 3.0 * pi * (rOuter**3 - rInner**3))
 
-    return (g_average, radii, interior_indices)
+    return (g_average, S_average, radii, interior_indices)
     # Number of particles in shell/total number of particles/volume of shell/number density
     # shell volume = 4/3*pi(r_outer**3-r_inner**3)
 ####    
@@ -321,7 +323,8 @@ def run_montecarlo(v, n_run, dr_coeff = 0.58):
     R_cut = v.r[-1]  # TODO
     #v_f = interp1d(r,v)
 
-    g_list = []    
+    g_list = [] 
+    S_list = []
     
     # Initialize the system at a random distribution
     particles = initialize_system(N_particles,L_box,dim,'array_w_noise')
@@ -340,8 +343,9 @@ def run_montecarlo(v, n_run, dr_coeff = 0.58):
         
         ## After convergence calc and save g every N_corr steps
         if((n > N_conv)&(n%N_corr==0)):
-            gmeas = calc_and_plot_g_r(particles,n)
+            gmeas, Smeas = calc_and_plot_g_r(particles,n)
             g_list.append(gmeas)
+            S_list.append(Smeas)
             
     elapsed = time.time() - start
     print('Done in %d s' % elapsed)
@@ -351,7 +355,7 @@ def run_montecarlo(v, n_run, dr_coeff = 0.58):
     plot_conf(particles,N_mcs,i)
 
         
-    return particles,E,g_list
+    return particles,E,g_list,S_list
     
 def calc_and_plot_g_r(particles,N_iter):
     
@@ -364,7 +368,9 @@ def calc_and_plot_g_r(particles,N_iter):
 #    ax.scatter(xp, yp, zp)
     # Calculate pair correlation function
     gmeas = par()
-    gmeas.v,gmeas.r,_ = pair_correlation_function_3D(xp,yp,zp,L_box*3.,9.75,0.5)
+    Smeas = par()
+    gmeas.v,Smeas.v,gmeas.r,_ = pair_correlation_function_3D(xp,yp,zp,L_box*3.,9.75,0.5)
+    Smeas.r = gmeas.r
     #And import the paper one
     gtheory = par()
     gtheory.r,gtheory.v = get_g('D:/Google Drive/Potential Retrieval/gtest.txt')       #plot it together with the one given by the paper
@@ -377,7 +383,7 @@ def calc_and_plot_g_r(particles,N_iter):
     plt.savefig('D:/Google Drive/Potential Retrieval/final_g/all_g_%dmcs/n%d.png' % (N_mcs,N_iter), dpi = 300)
     plt.close('all')
     
-    return gmeas
+    return gmeas, Smeas
      
 def plot_convergence(Energies,coeffs):
     fig = plt.figure(figsize = (8,6 ))
@@ -443,7 +449,7 @@ def check_correlation_at_convergence(E_conv, N_display = 20000):
 
     return
     #%%
-def calc_g_average(g_list):
+def calc_dist_average(g_list, name):
     Nm = len(g_list)
     r = g_list[0].r
     gsum2 = np.zeros(len(r))
@@ -454,16 +460,21 @@ def calc_g_average(g_list):
     gav = gsum/Nm
     gstd = np.sqrt(gsum2/Nm - gav**2) * np.sqrt(Nm) / np.sqrt(Nm-1.0)  
 
-    np.savetxt('D:/Google Drive/Potential Retrieval/final_g/g_av_%dmcs_conv%d_skip%d.txt' % (N_mcs,N_conv,N_corr),np.transpose([r,gav,gstd]), fmt = '%.04f', delimiter = '\t', header = 'r\tg(r)\tsigma(g)')
+    np.savetxt('D:/Google Drive/Potential Retrieval/final_g/%s_av_%dmcs_conv%d_skip%d.txt' % (name,N_mcs,N_conv,N_corr),np.transpose([r,gav,gstd]), fmt = '%.04f', delimiter = '\t', header = 'r\tg(r)\tsigma(g)')
     
     plt.figure(figsize = (6,4.5))
-    plt.plot(gtheory.r,gtheory.v,label = 'expected', zorder = 0)
+    #Plot theory
+    if name == 'g':
+        plt.plot(gtheory.r,gtheory.v,label = 'expected', zorder = 0)
+    elif name == 'S':
+        dr = r[1]- r[0]
+        plt.plot(gtheory.r,gtheory.v * 4 * np.pi * gtheory.r**2 * dr,label = 'expected', zorder = 0)
     plt.errorbar(r,gav,yerr = gstd,marker = 'o', linestyle = 'None', label = 'measured', zorder = 1)
     plt.xlabel(r'$r$')
-    plt.ylabel(r'$g(r)$')
+    plt.ylabel(r'$%s(r)$' % name)
     plt.figtext(0.99, 0.99, git_v, fontsize = 8, ha = 'right', va = 'top')
     plt.legend()
-    plt.savefig('D:/Google Drive/Potential Retrieval/final_g/g_av_%dmcs_conv%d_skip%d.png' % (N_mcs,N_conv,N_corr), dpi = 300)
+    plt.savefig('D:/Google Drive/Potential Retrieval/final_g/%s_av_%dmcs_conv%d_skip%d.png' % (name,N_mcs,N_conv,N_corr), dpi = 300)
     plt.close('all')
     
     return
@@ -507,7 +518,7 @@ if __name__ == '__main__':
         
 
         #%%
-        particles,E,g_list = run_montecarlo(vtest, i, dr_coeff = c)
+        particles,E,g_list,S_list = run_montecarlo(vtest, i, dr_coeff = c)
         Energies[c] = E
         
 #%% Plot the convergence test
@@ -517,7 +528,8 @@ if __name__ == '__main__':
 #    check_correlation_at_convergence(Energies[dr_c][N_conv:])
 
 #%% Save the statistical average of g
-    calc_g_average(g_list)
+    calc_dist_average(g_list,'g')
+    calc_dist_average(S_list,'S')
     
 
 #%%
