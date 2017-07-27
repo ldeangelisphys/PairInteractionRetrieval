@@ -275,49 +275,53 @@ def calc_distances(elements,ref,L_box,R_cut):
 
     return distances    
     
+def MC_step(particles,chosen_one,dr,R_cut,v):
+    """Performs a single Monte Carlo step"""
+    
+    #%%Calculate the difference in energy
+    other_particles = np.delete(particles,chosen_one,0)
+    old_particle = particles[chosen_one]
+    new_particle = (old_particle + dr)%L_box
+    #%% Apply periodic Boundary conditions and exclude particles outside R_cut
+    # Particles at a distance > R_cut don't contribute to the energy
+    old_distances = calc_distances(other_particles,old_particle,L_box,R_cut)   
+    new_distances = calc_distances(other_particles,new_particle,L_box,R_cut)
+    old_histo,bins  = np.histogram(old_distances, bins = v.bin)
+    new_histo,bins  = np.histogram(new_distances, bins = v.bin)
+    dE = np.sum((new_histo-old_histo)*v.v)
+    #%%dE = np.sum(potential(new_distances)) - np.sum(potential(old_distances))
+    #Accept or decline the movement
+    acc_prob = np.min([1,np.exp(-dE)])
+    if np.random.rand() < acc_prob:
+        # perform the movement
+        particles[chosen_one] = new_particle
+        move = 1
+    else:
+        move = 0
 
+    return dE,move
     
 def MC_sim(particles,L_box,N_iterations,dr_coeff,v,R_cut):
     """Performs a Monte Carlo simulation"""
-#%%
+
+
     (N_particles,dim) = np.shape(particles)
-    E = np.zeros(N_iterations+1) #TODO initial energy       
-    
+    E = np.zeros(N_iterations+1) #TODO initial energy
     
     # Initialize N_iterations random extractions
-    random_extraction = np.random.rand(N_iterations)
+#    random_extraction = np.random.rand(N_iterations)
     
     MC_move = 0
-#%%
+
     for n in range(N_iterations):
         
-        #%%Propose a movement
         chosen_one = np.random.randint(N_particles)
         dr = dr_coeff*np.random.rand(dim)
-        #%%Calculate the difference in energy
-        other_particles = np.delete(particles,chosen_one,0)
-        old_particle = particles[chosen_one]
-        new_particle = (old_particle + dr)%L_box
-        #%% Apply periodic Boundary conditions and exclude particles outside R_cut
-        # Particles at a distance > R_cut don't contribute to the energy
-        old_distances = calc_distances(other_particles,old_particle,L_box,R_cut)   
-        new_distances = calc_distances(other_particles,new_particle,L_box,R_cut)
-        old_histo,bins  = np.histogram(old_distances, bins = v.bin)
-        new_histo,bins  = np.histogram(new_distances, bins = v.bin)
-        dE = np.sum((new_histo-old_histo)*v.v)
-        #%%dE = np.sum(potential(new_distances)) - np.sum(potential(old_distances))
-        #Accept or decline the movement
-        acc_prob = np.min([1,np.exp(-dE)])
-        if random_extraction[n] < acc_prob:
-            # perform the movement
-            particles[chosen_one] = new_particle
-            # update observables
-            E[n+1] = E[n] + dE
-            # And count the MC move
-            MC_move += 1
-        else:
-            E[n+1] = E[n]
-    
+        ####
+        dE,this_move = MC_step(particles,chosen_one,dr,R_cut,v)
+        ####
+        E[n+1] = E[n] + dE
+        MC_move += this_move
 
     print MC_move
 
@@ -332,9 +336,7 @@ def run_montecarlo(n_run, N_iter = 1000, dr_coeff = 0.58):
     v.bin = np.append(0,np.append(0.5*(v.r[1:]+v.r[:-1]),float('Inf')))  
     #v_f = interp1d(r,v)
 
-    L_box = 20
-    N_particles = 50
-    dim = 3
+    
     # Initialize the system at a random distribution
     starting = initialize_system(N_particles,L_box,dim,'array_w_noise')
 
@@ -437,8 +439,14 @@ if __name__ == '__main__':
 
     g = par()
     g.r,g.v = get_g('D:/Google Drive/Potential Retrieval/gtest.txt')
-    N_mcs = 500000
+    N_mcs = 100000
     dr_c = 0.58
+    L_box = 20
+    N_particles = 50
+    dim = 3    
+    # Monte Carlo Step at which I have convergence
+    N_conv = 50000
+
     
     
     start = time.time()
@@ -461,7 +469,6 @@ if __name__ == '__main__':
     plot_convergence(Energies,coeffs)
     
 #%% Correlate after convergence
-    N_conv = 50000
     check_correlation_at_convergence(Energies[dr_c][N_conv:])
 
     #%%    corr = np.correlate(E_conv,E_conv[10000:20000])
