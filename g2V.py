@@ -16,7 +16,7 @@ class par:
 
 def check_folders_existence(f_path):    
     
-    folders_list = ['final_g','final_configuration','final_g/all_g_%dmcs' % N_mcs]
+    folders_list = ['final_g','final_configuration','final_g/all_g_%dmcs' % N_mcs, 'pot_variations']
 
     for folder in folders_list:        
         if not os.path.exists(f_path + folder):
@@ -298,9 +298,9 @@ def MC_step(particles,chosen_one,dr,R_cut,v):
     # Particles at a distance > R_cut don't contribute to the energy
     old_distances = calc_distances(other_particles,old_particle,L_box,R_cut)   
     new_distances = calc_distances(other_particles,new_particle,L_box,R_cut)
-    old_histo,bins  = np.histogram(old_distances, bins = v.bin)
-    new_histo,bins  = np.histogram(new_distances, bins = v.bin)
-    dE = np.sum((new_histo-old_histo)*v.v)
+    old_histo,bins  = np.histogram(old_distances, bins = v_bin)
+    new_histo,bins  = np.histogram(new_distances, bins = v_bin)
+    dE = np.sum((new_histo-old_histo)*v)
     #%%dE = np.sum(potential(new_distances)) - np.sum(potential(old_distances))
     #Accept or decline the movement
     acc_prob = np.min([1,np.exp(-dE)])
@@ -320,7 +320,7 @@ def run_montecarlo(v, n_run, dr_coeff = 0.58):
     
     start = time.time()
 
-    R_cut = v.r[-1]  # TODO
+    R_cut = v_r[-1]  # TODO
     #v_f = interp1d(r,v)
 
     g_list = [] 
@@ -357,7 +357,7 @@ def run_montecarlo(v, n_run, dr_coeff = 0.58):
         
     return particles,E,g_list,S_list
     
-def calc_and_plot_g_r(particles,N_iter):
+def calc_and_plot_g_r(particles,n):
     
     #Replicate the system that I considered periodic
     more_particles = replicate_3D(particles,20)
@@ -372,15 +372,13 @@ def calc_and_plot_g_r(particles,N_iter):
     gmeas.v,Smeas.v,gmeas.r,_ = pair_correlation_function_3D(xp,yp,zp,L_box*3.,9.75,0.5)
     Smeas.r = gmeas.r
     #And import the paper one
-    gtheory = par()
-    gtheory.r,gtheory.v = get_g('D:/Google Drive/Potential Retrieval/gtest.txt')       #plot it together with the one given by the paper
     plt.figure(figsize = (7,4))
     plt.plot(gmeas.r,gmeas.v)
     plt.plot(gtheory.r,gtheory.v)
     plt.xlabel('r')
     plt.ylabel('g(r)')
     plt.figtext(0.99, 0.99, git_v, fontsize = 8, ha = 'right', va = 'top')
-    plt.savefig('D:/Google Drive/Potential Retrieval/final_g/all_g_%dmcs/n%d.png' % (N_mcs,N_iter), dpi = 300)
+    plt.savefig('D:/Google Drive/Potential Retrieval/final_g/all_g_%dmcs/n%d.png' % (N_mcs,n), dpi = 300)
     plt.close('all')
     
     return gmeas, Smeas
@@ -488,10 +486,11 @@ if __name__ == '__main__':
 
     gtheory = par()
     gtheory.r,gtheory.v = get_g('D:/Google Drive/Potential Retrieval/gtest.txt')
-    Stheory = gtheory
-    Stheory.v = Stheory.v * 4 * np.pi * Stheory.r**2
+    Stheory = par()
+    Stheory.r,Stheory.v = get_g('D:/Google Drive/Potential Retrieval/gtest.txt')
+    Stheory.v *= 4 * np.pi * Stheory.r**2
     
-    N_mcs = 80 * 1000
+    N_mcs = 200 * 1000
     dr_c = 0.58
     L_box = 20
     N_particles = 50
@@ -505,52 +504,75 @@ if __name__ == '__main__':
 
     
     # Define a potential
-    vtest = par()
-    vtest.r,vtest.v = get_g('D:/Google Drive/Potential Retrieval/vtest.txt')
-#    vtest.r,vtest.v = gtheory.r,-np.log(gtheory.v)
-#    vtest.v[0] = 100000
-    vtest.bin = np.append(0,np.append(0.5*(vtest.r[1:]+vtest.r[:-1]),2*L_box))
+#    v_r,v_trial = get_g('D:/Google Drive/Potential Retrieval/vtest.txt')
+    v_r,v_trial = gtheory.r, -np.log(gtheory.v)
+    v_trial[0] = 100000 # to account for the infinity at the beginning
+    v_bin = np.append(0,np.append(0.5*(v_r[1:]+v_r[:-1]),2*L_box))
+    
 
 
     # If I want to try different dr coefficients
     coeffs = [dr_c]
     Energies = {}
-
-    for i,c in enumerate(coeffs):
+    v_list = []
+    v_list.append(v_trial)
+    
+    N_iter = 3
+#%%    
+    for k in range(N_iter):
         
 
-        #%%
-        particles,E,g_list,S_list = run_montecarlo(vtest, i, dr_coeff = c)
-        Energies[c] = E
+        for i,c in enumerate(coeffs):
+            
+    
+            #%%
+            particles,E,g_list,S_list = run_montecarlo(v_list[k], i, dr_coeff = c)
+            Energies[c] = E
+            
+    #%% Plot the convergence test
+        plot_convergence(Energies,coeffs)
         
-#%% Plot the convergence test
-    plot_convergence(Energies,coeffs)
+    #%% Correlate after convergence
+    #    check_correlation_at_convergence(Energies[dr_c][N_conv:])
     
-#%% Correlate after convergence
-#    check_correlation_at_convergence(Energies[dr_c][N_conv:])
+    #%% Save the statistical average of g
+        gav,gstd = calc_dist_average(g_list,'g')
+        Sav,Sstd = calc_dist_average(S_list,'S')
+        
+    #%% Define what part of the calc g can be compared to the known one
+        r_min = np.where(S_list[0].r == Stheory.r[0])[0][0]
+        r_max = np.where(S_list[0].r == Stheory.r[-1])[0][0] + 1
+    #%% Perform the retrieval alghorithm
+        
+        S_array = np.array([single_S.v[r_min:r_max] for single_S in S_list])
+        S_av = np.average(S_array, axis = 0)
+        S_cov = np.cov(S_array,rowvar = 0)
+        
+        delta_S = S_av - Stheory.v
+        
+        damp = 0.2
+        
+        for nskip in range(3,5):
+            try:
+                delta_v = np.linalg.solve(S_cov[nskip:,nskip:],delta_S[nskip:]) * damp
+                break
+            except:
+                continue
+            
+        new_v = np.zeros(len(v_r))
+        new_v += v_list[k]
+        new_v[nskip:] += delta_v
+        v_list.append(new_v)
+            
+        plt.figure(figsize = (6,4.5))
+        for vv in v_list:
+            plt.plot(v_r[1:],vv[1:])
+        plt.savefig('D:/Google Drive/Potential Retrieval/pot_variations/000-%03d.png' % (k+1),dpi = 300)
+        plt.close('all')
 
-#%% Save the statistical average of g
-    gav,gstd = calc_dist_average(g_list,'g')
-    Sav,Sstd = calc_dist_average(S_list,'S')
     
-#%% Define what part of the calc g can be compared to the known one
-    r_min = np.where(S_list[0].r == Stheory.r[0])[0][0]
-    r_max = np.where(S_list[0].r == Stheory.r[-1])[0][0] + 1
-#%% Perform the retrieval alghorithm
-    
-    S_array = np.array([single_S.v[r_min:r_max] for single_S in S_list])
-    S_av = np.average(S_array, axis = 0)
-    S_cov = np.cov(S_array,rowvar = 0)
-    
-    delta_S = S_av - Stheory.v
-    
-    nskip = 2
-    delta_V = np.linalg.solve(S_cov[nskip:,nskip:],delta_S[nskip:])
-    plt.plot(vtest.r[1:],vtest.v[1:])
-    plt.plot(vtest.r[nskip:],vtest.v[nskip:] + delta_V)
-
-    
-#%%
+        
+    #%%
     
     
     
