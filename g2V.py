@@ -389,7 +389,7 @@ if __name__ == '__main__':
 
     g = par()
     g.r,g.v = get_g('D:/Google Drive/Potential Retrieval/gtest.txt')
-    N_mcs = 50000
+    N_mcs = 500000
     
     
     start = time.time()
@@ -397,7 +397,7 @@ if __name__ == '__main__':
     g_list = []
     Energies = {}
 #    for i in range(1):
-    coeffs = [0.5,1.0,1.5]
+    coeffs = [0.58]
     for i,c in enumerate(coeffs):
         #%%
         start = time.time()
@@ -411,7 +411,22 @@ if __name__ == '__main__':
 #%% Plot the convergence test
     plot_convergence(Energies,coeffs)
     
-    #%%####
+#%% Correlate after convergence
+    N_conv = 50000
+    E_conv = Energies[0.58][N_conv:]
+    #plt.plot(E_conv)
+    interval = 10000
+    center = len(E_conv)/2
+    sample = E_conv[center-interval/2:center+interval/2]
+    corr = []
+    for i in range(center-interval,center+interval):
+        c = np.corrcoef(E_conv[i:interval+i],sample)
+        corr.append(c)
+#    corr = np.correlate(E_conv,E_conv[10000:20000])
+    plt.plot(corr)
+
+
+#%%
 
     
 
