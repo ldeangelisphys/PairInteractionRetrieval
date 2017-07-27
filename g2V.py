@@ -16,7 +16,7 @@ class par:
 
 def check_folders_existence(f_path):    
     
-    folders_list = ['final_g','final_configuration','final_g/all_g_%dmcs' % N_mcs, 'pot_variations']
+    folders_list = ['','final_g','final_configuration','final_g/all_g', 'pot_variations']
 
     for folder in folders_list:        
         if not os.path.exists(f_path + folder):
@@ -378,7 +378,7 @@ def calc_and_plot_g_r(particles,n):
     plt.xlabel('r')
     plt.ylabel('g(r)')
     plt.figtext(0.99, 0.99, git_v, fontsize = 8, ha = 'right', va = 'top')
-    plt.savefig('D:/Google Drive/Potential Retrieval/final_g/all_g_%dmcs/n%d.png' % (N_mcs,n), dpi = 300)
+    plt.savefig(out_root + 'final_g/all_g/n%d.png' % (n), dpi = 300)
     plt.close('all')
     
     return gmeas, Smeas
@@ -392,7 +392,7 @@ def plot_convergence(Energies,coeffs):
     plt.xlabel('# iteration')
     plt.ylabel('Energy/KT')
     plt.figtext(0.99, 0.99, git_v, fontsize = 8, ha = 'right', va = 'top')
-    plt.savefig('D:/Google Drive/Potential Retrieval/convergence_%dmcs.png' % N_mcs, dpi = 600)
+    plt.savefig(out_root + 'convergence_%dmcs.png' % N_mcs, dpi = 600)
     plt.close('all')
 
     return
@@ -406,7 +406,7 @@ def plot_conf(particles,N_mcs,n_conf):
     ax.set_ylabel('y')
     ax.set_zlabel('z')
     plt.figtext(0.99, 0.99, git_v, fontsize = 8, ha = 'right', va = 'top')
-    plt.savefig('D:/Google Drive/Potential Retrieval/final_configuration/sim_%dmcs_n%d.png' % (N_mcs,n_conf), dpi = 600)
+    plt.savefig(out_root + 'final_configuration/sim_%dmcs_n%d.png' % (N_mcs,n_conf), dpi = 600)
     plt.close('all')
     
     return     
@@ -417,7 +417,7 @@ def check_correlation_at_convergence(E_conv, N_display = 20000):
     plt.xlabel('# MCstep')
     plt.ylabel('Energy')
     plt.figtext(0.99, 0.99, git_v, fontsize = 8, ha = 'right', va = 'top')
-    plt.savefig('D:/Google Drive/Potential Retrieval/after_convergence_Nmcs%d_dr%.2f.png' % (N_mcs,dr_c), dpi = 600)
+    plt.savefig(out_root + 'after_convergence_Nmcs%d_dr%.2f.png' % (N_mcs,dr_c), dpi = 600)
     plt.close('all')
     
     interval = N_mcs/5
@@ -442,7 +442,7 @@ def check_correlation_at_convergence(E_conv, N_display = 20000):
     ax.xaxis.set_major_formatter(majorFormatter)
     ax.xaxis.set_minor_locator(minorLocator)
     plt.figtext(0.99, 0.99, git_v, fontsize = 8, ha = 'right', va = 'top')
-    plt.savefig('D:/Google Drive/Potential Retrieval/after_convergence_correlation_Nmcs%d_dr%.2f.png' % (N_mcs,dr_c), dpi = 600)
+    plt.savefig(out_root + 'after_convergence_correlation_Nmcs%d_dr%.2f.png' % (N_mcs,dr_c), dpi = 600)
     plt.close('all')
 
     return
@@ -458,7 +458,7 @@ def calc_dist_average(g_list, name):
     gav = gsum/Nm
     gstd = np.sqrt(gsum2/Nm - gav**2) * np.sqrt(Nm) / np.sqrt(Nm-1.0)  
 
-    np.savetxt('D:/Google Drive/Potential Retrieval/final_g/%s_av_%dmcs_conv%d_skip%d.txt' % (name,N_mcs,N_conv,N_corr),np.transpose([r,gav,gstd]), fmt = '%.04f', delimiter = '\t', header = 'r\tg(r)\tsigma(g)')
+    np.savetxt(out_root + 'final_g/%s_av_%dmcs_conv%d_skip%d.txt' % (name,N_mcs,N_conv,N_corr),np.transpose([r,gav,gstd]), fmt = '%.04f', delimiter = '\t', header = 'r\tg(r)\tsigma(g)')
     
     plt.figure(figsize = (6,4.5))
     #Plot theory
@@ -471,7 +471,7 @@ def calc_dist_average(g_list, name):
     plt.ylabel(r'$%s(r)$' % name)
     plt.figtext(0.99, 0.99, git_v, fontsize = 8, ha = 'right', va = 'top')
     plt.legend()
-    plt.savefig('D:/Google Drive/Potential Retrieval/final_g/%s_av_%dmcs_conv%d_skip%d.png' % (name,N_mcs,N_conv,N_corr), dpi = 300)
+    plt.savefig(out_root + 'final_g/%s_av_%dmcs_conv%d_skip%d.png' % (name,N_mcs,N_conv,N_corr), dpi = 300)
     plt.close('all')
     
     return gav,gstd
@@ -490,7 +490,7 @@ if __name__ == '__main__':
     Stheory.r,Stheory.v = get_g('D:/Google Drive/Potential Retrieval/gtest.txt')
     Stheory.v *= 4 * np.pi * Stheory.r**2
     
-    N_mcs = 200 * 1000
+    N_mcs = 100 * 1000
     dr_c = 0.58
     L_box = 20
     N_particles = 50
@@ -500,7 +500,8 @@ if __name__ == '__main__':
     # MC steps to wait between saving observable
     N_corr = 2000
     
-    check_folders_existence('D:/Google Drive/Potential Retrieval/')
+    out_root = 'D:/Google Drive/Potential Retrieval/' + '%dMCS_conv%d/' % (N_mcs,N_conv)
+    check_folders_existence(out_root)
 
     
     # Define a potential
@@ -517,7 +518,7 @@ if __name__ == '__main__':
     v_list = []
     v_list.append(v_trial)
     
-    N_iter = 3
+    N_iter = 5
 #%%    
     for k in range(N_iter):
         
@@ -550,7 +551,7 @@ if __name__ == '__main__':
         
         delta_S = S_av - Stheory.v
         
-        damp = 0.2
+        damp = 0.5
         
         for nskip in range(3,5):
             try:
@@ -567,31 +568,5 @@ if __name__ == '__main__':
         plt.figure(figsize = (6,4.5))
         for vv in v_list:
             plt.plot(v_r[1:],vv[1:])
-        plt.savefig('D:/Google Drive/Potential Retrieval/pot_variations/000-%03d.png' % (k+1),dpi = 300)
+        plt.savefig(out_root + 'pot_variations/000-%03d.png' % (k+1),dpi = 300)
         plt.close('all')
-
-    
-        
-    #%%
-    
-    
-    
-
-
-
-
-#%%
-
-    
-
-#    g_arr = np.array(g_list)
-#    g_av = np.average(g_list, axis = 0)
-#    g_std = np.std(g_list, axis = 0)
-#    plt.errorbar(g.r,g_av,yerr = g_std, color = 'red')
-#    plt.plot(g.r,g.v, color = 'green')
-#
-#
-#
-#    end = time.time()
-#    duration = end - start
-#    print('Done in %.1f s' % duration)
