@@ -330,8 +330,12 @@ def run_montecarlo(n_run, dr_coeff = 0.58):
         MC_move += this_move
 
     print MC_move
-
     
+    gmeas = calc_and_plot_g_r(particles,n)
+    
+    return particles,E,gmeas
+    
+def calc_and_plot_g_r(particles,N_iter):
     
     #Replicate the system that I considered periodic
     more_particles = replicate_3D(particles,20)
@@ -341,20 +345,21 @@ def run_montecarlo(n_run, dr_coeff = 0.58):
 #    ax = fig.add_subplot(111, projection='3d')
 #    ax.scatter(xp, yp, zp)
     # Calculate pair correlation function
-    gm,rm,im = pair_correlation_function_3D(xp,yp,zp,L_box*3.,9.75,0.5)
+    gmeas = par()
+    gmeas.v,gmeas.r,_ = pair_correlation_function_3D(xp,yp,zp,L_box*3.,9.75,0.5)
     #And import the paper one
-    rt,gt = get_g('D:/Google Drive/Potential Retrieval/gtest.txt')       #plot it together with the one given by the paper
+    gtheory = par()
+    gtheory.r,gtheory.v = get_g('D:/Google Drive/Potential Retrieval/gtest.txt')       #plot it together with the one given by the paper
     plt.figure(figsize = (7,4))
-    plt.plot(rm,gm)
-    plt.plot(rt,gt)
+    plt.plot(gmeas.r,gmeas.v)
+    plt.plot(gtheory.r,gtheory.v)
     plt.xlabel('r')
     plt.ylabel('g(r)')
     plt.figtext(0.99, 0.99, git_v, fontsize = 8, ha = 'right', va = 'top')
-    plt.savefig('D:/Google Drive/Potential Retrieval/final_g/g_%dmcs_n%d.png' % (N_iter,n_run), dpi = 300)
+    plt.savefig('D:/Google Drive/Potential Retrieval/final_g/g_%dmcs_n%d.png' % (N_mcs,N_iter), dpi = 300)
     plt.close('all')
     
-    return particles,E,gm
-    
+    return gmeas
      
 def plot_convergence(Energies,coeffs):
     fig = plt.figure(figsize = (8,6 ))
@@ -448,7 +453,7 @@ if __name__ == '__main__':
     for i,c in enumerate(coeffs):
         #%%
         start = time.time()
-        particles,E,gav = run_montecarlo(i, dr_coeff = c)
+        particles,E,gmeas = run_montecarlo(i, dr_coeff = c)
         plot_conf(particles,N_mcs,i)
         elapsed = time.time() - start
         print 'Done in %d s' % elapsed
