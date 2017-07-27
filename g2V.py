@@ -218,8 +218,8 @@ def pair_correlation_function_3D(x, y, z, S, rMax, dr):
         radii[i] = (edges[i] + edges[i+1]) / 2.
         rOuter = edges[i + 1]
         rInner = edges[i]
-        S_average[i] = mean(g[:, i])
-        g_average[i] = S_average[i] / (4.0 / 3.0 * pi * (rOuter**3 - rInner**3))
+        S_average[i] = mean(g[:, i]) / (rOuter - rInner)
+        g_average[i] = mean(g[:, i]) / (4.0 / 3.0 * pi * (rOuter**3 - rInner**3))
 
     return (g_average, S_average, radii, interior_indices)
     # Number of particles in shell/total number of particles/volume of shell/number density
@@ -467,8 +467,7 @@ def calc_dist_average(g_list, name):
     if name == 'g':
         plt.plot(gtheory.r,gtheory.v,label = 'expected', zorder = 0)
     elif name == 'S':
-        dr = r[1]- r[0]
-        plt.plot(gtheory.r,gtheory.v * 4 * np.pi * gtheory.r**2 * dr,label = 'expected', zorder = 0)
+        plt.plot(gtheory.r,gtheory.v * 4 * np.pi * gtheory.r**2,label = 'expected', zorder = 0)
     plt.errorbar(r,gav,yerr = gstd,marker = 'o', linestyle = 'None', label = 'measured', zorder = 1)
     plt.xlabel(r'$r$')
     plt.ylabel(r'$%s(r)$' % name)
