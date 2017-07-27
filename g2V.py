@@ -6,6 +6,7 @@ from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import cm
 from matplotlib.ticker import MultipleLocator, FormatStrFormatter
 import subprocess
+import os
 
 class par:
     def __init__(self):
@@ -13,6 +14,15 @@ class par:
         self.v = 0
         self.bin = 0
 
+def check_folders_existence(f_path):    
+    
+    folders_list = ['final_g','final_configuration','final_g/all_g_%dmcs' % N_mcs]
+
+    for folder in folders_list:        
+        if not os.path.exists(f_path + folder):
+            os.makedirs(f_path + folder)
+            
+    return
 
 def pair_correlation_function_2D(kind, x, y, S, rMax, dr): 
     """
@@ -313,7 +323,7 @@ def run_montecarlo(n_run, dr_coeff = 0.58):
     R_cut = v.r[-1]
     #v_f = interp1d(r,v)
 
-    glist = []    
+    g_list = []    
     
     # Initialize the system at a random distribution
     particles = initialize_system(N_particles,L_box,dim,'array_w_noise')
@@ -330,15 +340,15 @@ def run_montecarlo(n_run, dr_coeff = 0.58):
         E[n+1] = E[n] + dE
         MC_move += this_move
         
-        ## After convergence calc and save g every 10000 steps
-        if((n > N_conv)&(n%2000==0)):
+        ## After convergence calc and save g every N_corr steps
+        if((n > N_conv)&(n%N_corr==0)):
             gmeas = calc_and_plot_g_r(particles,n)
-            glist.append(gmeas)
+            g_list.append(gmeas)
             
 
     print MC_move
         
-    return particles,E,glist
+    return particles,E,g_list
     
 def calc_and_plot_g_r(particles,N_iter):
     
@@ -361,7 +371,7 @@ def calc_and_plot_g_r(particles,N_iter):
     plt.xlabel('r')
     plt.ylabel('g(r)')
     plt.figtext(0.99, 0.99, git_v, fontsize = 8, ha = 'right', va = 'top')
-    plt.savefig('D:/Google Drive/Potential Retrieval/final_g/g_%dmcs_n%d.png' % (N_mcs,N_iter), dpi = 300)
+    plt.savefig('D:/Google Drive/Potential Retrieval/final_g/all_g_%dmcs/n%d.png' % (N_mcs,N_iter), dpi = 300)
     plt.close('all')
     
     return gmeas
@@ -429,6 +439,29 @@ def check_correlation_at_convergence(E_conv, N_display = 20000):
     plt.close('all')
 
     return
+    #%%
+def calc_g_average(g_list):
+    Nm = len(g_list)
+    r = g_list[0].r
+    gsum2 = np.zeros(len(r))
+    gsum = np.zeros(len(r))
+    for gm in g_list:
+        gsum += gm.v
+        gsum2 += gm.v**2
+    gav = gsum/Nm
+    gstd = np.sqrt(gsum2/Nm - gav**2) * np.sqrt(Nm) / np.sqrt(Nm-1.0)  
+
+    np.savetxt('D:/Google Drive/Potential Retrieval/final_g/g_av_%dmcs_conv%d_skip%d.txt' % (N_mcs,N_conv,N_corr),np.transpose([r,gav,gstd]), fmt = '%.04f', delimiter = '\t', header = 'r\tg(r)\tsigma(g)')
+    
+    plt.figure(figsize = (6,4.5))
+    plt.errorbar(r,gav,yerr = gstd,marker = 'o', linestyle = 'None', label = 'measured')
+    plt.plot(gtheory.r,gtheory.v,label = 'expected')
+    plt.xlabel(r'$r$')
+    plt.ylabel(r'$g(r)$')
+    plt.savefig('D:/Google Drive/Potential Retrieval/final_g/g_av_%dmcs_conv%d_skip%d.png' % (N_mcs,N_conv,N_corr), dpi = 300)
+    plt.close('all')
+    
+    return
     
     #%%
             
@@ -437,15 +470,19 @@ if __name__ == '__main__':
     
     git_v = subprocess.check_output(["git", "rev-parse", "--verify", "--short", "HEAD"])
 
-    g = par()
-    g.r,g.v = get_g('D:/Google Drive/Potential Retrieval/gtest.txt')
-    N_mcs = 100000
+    gtheory = par()
+    gtheory.r,gtheory.v = get_g('D:/Google Drive/Potential Retrieval/gtest.txt')
+    N_mcs = 1000000
     dr_c = 0.58
     L_box = 20
     N_particles = 50
     dim = 3    
     # Monte Carlo Step at which I have convergence
     N_conv = 50000
+    # MC steps to wait between saving observable
+    N_corr = 2000
+    
+    check_folders_existence('D:/Google Drive/Potential Retrieval/')
 
     
     
@@ -458,21 +495,21 @@ if __name__ == '__main__':
     for i,c in enumerate(coeffs):
         #%%
         start = time.time()
-        particles,E,glist = run_montecarlo(i, dr_coeff = c)
+        particles,E,g_list = run_montecarlo(i, dr_coeff = c)
         plot_conf(particles,N_mcs,i)
         elapsed = time.time() - start
         print 'Done in %d s' % elapsed
         #%%
-        g_list.append(gav)
         Energies[c] = E
 #%% Plot the convergence test
     plot_convergence(Energies,coeffs)
     
 #%% Correlate after convergence
-    check_correlation_at_convergence(Energies[dr_c][N_conv:])
+#    check_correlation_at_convergence(Energies[dr_c][N_conv:])
 
-    #%%    corr = np.correlate(E_conv,E_conv[10000:20000])
-
+#%% Save the statistical average of g
+    calc_g_average(g_list)
+    
 
 #%%
 
