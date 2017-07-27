@@ -346,7 +346,7 @@ def run_montecarlo(n_run, dr_coeff = 0.58):
             g_list.append(gmeas)
             
 
-    print MC_move
+    print('%d %% of the Monte Carlo steps were performed (%d out of %d)' % (MC_move/N_mcs, MC_move,N_mcs))
         
     return particles,E,g_list
     
@@ -454,10 +454,11 @@ def calc_g_average(g_list):
     np.savetxt('D:/Google Drive/Potential Retrieval/final_g/g_av_%dmcs_conv%d_skip%d.txt' % (N_mcs,N_conv,N_corr),np.transpose([r,gav,gstd]), fmt = '%.04f', delimiter = '\t', header = 'r\tg(r)\tsigma(g)')
     
     plt.figure(figsize = (6,4.5))
-    plt.errorbar(r,gav,yerr = gstd,marker = 'o', linestyle = 'None', label = 'measured')
     plt.plot(gtheory.r,gtheory.v,label = 'expected')
+    plt.errorbar(r,gav,yerr = gstd,marker = 'o', linestyle = 'None', label = 'measured')
     plt.xlabel(r'$r$')
     plt.ylabel(r'$g(r)$')
+    plt.figtext(0.99, 0.99, git_v, fontsize = 8, ha = 'right', va = 'top')
     plt.savefig('D:/Google Drive/Potential Retrieval/final_g/g_av_%dmcs_conv%d_skip%d.png' % (N_mcs,N_conv,N_corr), dpi = 300)
     plt.close('all')
     
@@ -472,7 +473,7 @@ if __name__ == '__main__':
 
     gtheory = par()
     gtheory.r,gtheory.v = get_g('D:/Google Drive/Potential Retrieval/gtest.txt')
-    N_mcs = 1000000
+    N_mcs = 80000
     dr_c = 0.58
     L_box = 20
     N_particles = 50
@@ -498,7 +499,7 @@ if __name__ == '__main__':
         particles,E,g_list = run_montecarlo(i, dr_coeff = c)
         plot_conf(particles,N_mcs,i)
         elapsed = time.time() - start
-        print 'Done in %d s' % elapsed
+        print('Done in %d s' % elapsed)
         #%%
         Energies[c] = E
 #%% Plot the convergence test
@@ -525,4 +526,4 @@ if __name__ == '__main__':
 #
 #    end = time.time()
 #    duration = end - start
-#    print 'Done in %.1f s' % duration
+#    print('Done in %.1f s' % duration)
