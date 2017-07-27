@@ -306,20 +306,21 @@ def MC_step(particles,chosen_one,dr,R_cut,v):
 def run_montecarlo(n_run, dr_coeff = 0.58):
     """ Test the MC simulation using the example in hte paper byLyubartsev and Laaksonen"""
     
-    v = par()    
+    v = par()
     
     v.r,v.v = get_g('D:/Google Drive/Potential Retrieval/vtest.txt')
     v.bin = np.append(0,np.append(0.5*(v.r[1:]+v.r[:-1]),float('Inf')))
     R_cut = v.r[-1]
     #v_f = interp1d(r,v)
 
+    glist = []    
     
     # Initialize the system at a random distribution
     particles = initialize_system(N_particles,L_box,dim,'array_w_noise')
-    E = np.zeros(N_mcs+1) #TODO initial energy
+    E = np.zeros(N_mcs+2) #TODO initial energy
     MC_move = 0
 
-    for n in range(N_mcs):
+    for n in range(N_mcs+1):
         
         chosen_one = np.random.randint(N_particles)
         dr = dr_coeff*np.random.rand(dim)
@@ -328,12 +329,16 @@ def run_montecarlo(n_run, dr_coeff = 0.58):
         ####
         E[n+1] = E[n] + dE
         MC_move += this_move
+        
+        ## After convergence calc and save g every 10000 steps
+        if((n > N_conv)&(n%2000==0)):
+            gmeas = calc_and_plot_g_r(particles,n)
+            glist.append(gmeas)
+            
 
     print MC_move
-    
-    gmeas = calc_and_plot_g_r(particles,n)
-    
-    return particles,E,gmeas
+        
+    return particles,E,glist
     
 def calc_and_plot_g_r(particles,N_iter):
     
@@ -453,7 +458,7 @@ if __name__ == '__main__':
     for i,c in enumerate(coeffs):
         #%%
         start = time.time()
-        particles,E,gmeas = run_montecarlo(i, dr_coeff = c)
+        particles,E,glist = run_montecarlo(i, dr_coeff = c)
         plot_conf(particles,N_mcs,i)
         elapsed = time.time() - start
         print 'Done in %d s' % elapsed
