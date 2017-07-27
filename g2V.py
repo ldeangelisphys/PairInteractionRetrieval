@@ -297,7 +297,9 @@ def MC_step(particles,chosen_one,dr,R_cut,v):
         particles[chosen_one] = new_particle
         move = 1
     else:
+        # Decline
         move = 0
+        dE = 0
 
     return dE,move
     
