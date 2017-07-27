@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 import time
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import cm
+from matplotlib.ticker import MultipleLocator, FormatStrFormatter
+import subprocess
 
 class par:
     def __init__(self):
@@ -355,6 +357,7 @@ def run_montecarlo(n_run, N_iter = 1000, dr_coeff = 0.58):
     plt.plot(rt,gt)
     plt.xlabel('r')
     plt.ylabel('g(r)')
+    plt.figtext(0.99, 0.99, git_v, fontsize = 8, ha = 'right', va = 'top')
     plt.savefig('D:/Google Drive/Potential Retrieval/final_g/g_%dmcs_n%d.png' % (N_iter,n_run), dpi = 300)
     plt.close('all')
     
@@ -369,8 +372,10 @@ def plot_convergence(Energies,coeffs):
     plt.legend(loc = 3)
     plt.xlabel('# iteration')
     plt.ylabel('Energy/KT')
+    plt.figtext(0.99, 0.99, git_v, fontsize = 8, ha = 'right', va = 'top')
     plt.savefig('D:/Google Drive/Potential Retrieval/convergence_%dmcs.png' % N_mcs, dpi = 600)
-    
+    plt.close('all')
+
     return
     
     
@@ -381,15 +386,59 @@ def plot_conf(particles,N_mcs,n_conf):
     ax.set_xlabel('x')
     ax.set_ylabel('y')
     ax.set_zlabel('z')
+    plt.figtext(0.99, 0.99, git_v, fontsize = 8, ha = 'right', va = 'top')
     plt.savefig('D:/Google Drive/Potential Retrieval/final_configuration/sim_%dmcs_n%d.png' % (N_mcs,n_conf), dpi = 600)
+    plt.close('all')
     
-    return       
+    return     
+    #%%
+def check_correlation_at_convergence(E_conv, N_display = 20000):
+
+    plt.plot(range(N_conv,N_conv+N_display),E_conv[:N_display])
+    plt.xlabel('# MCstep')
+    plt.ylabel('Energy')
+    plt.figtext(0.99, 0.99, git_v, fontsize = 8, ha = 'right', va = 'top')
+    plt.savefig('D:/Google Drive/Potential Retrieval/after_convergence_Nmcs%d_dr%.2f.png' % (N_mcs,dr_c), dpi = 600)
+    plt.close('all')
+    
+    interval = 100000
+    shift_lim = 10000
+    center = len(E_conv)/2
+    sample = E_conv[center-interval/2:center+interval/2]
+    corr = []
+    shift = []
+    for i in range(center-interval/2 - shift_lim, center-interval/2 + shift_lim):
+        c = np.corrcoef(E_conv[i:interval+i],sample)
+        corr.append(c[0,1])
+        shift.append(i - center + interval/2)
+    
+    minorLocator = MultipleLocator(1000)
+    majorLocator = MultipleLocator(5000)
+    majorFormatter = FormatStrFormatter('%d')
+    fig,ax = plt.subplots()
+    ax.plot(shift,corr)
+    ax.set_xlabel(r'$dt$')
+    ax.set_ylabel(r'$\langle\,E(t)\,E(t+dt)\,\rangle$')
+    ax.xaxis.set_major_locator(majorLocator)
+    ax.xaxis.set_major_formatter(majorFormatter)
+    ax.xaxis.set_minor_locator(minorLocator)
+    plt.figtext(0.99, 0.99, git_v, fontsize = 8, ha = 'right', va = 'top')
+    plt.savefig('D:/Google Drive/Potential Retrieval/after_convergence_correlation_Nmcs%d_dr%.2f.png' % (N_mcs,dr_c), dpi = 600)
+    plt.close('all')
+
+    return
+    
+    #%%
             
 if __name__ == '__main__':
+
+    
+    git_v = subprocess.check_output(["git", "rev-parse", "--verify", "--short", "HEAD"])
 
     g = par()
     g.r,g.v = get_g('D:/Google Drive/Potential Retrieval/gtest.txt')
     N_mcs = 500000
+    dr_c = 0.58
     
     
     start = time.time()
@@ -397,7 +446,7 @@ if __name__ == '__main__':
     g_list = []
     Energies = {}
 #    for i in range(1):
-    coeffs = [0.58]
+    coeffs = [dr_c]
     for i,c in enumerate(coeffs):
         #%%
         start = time.time()
@@ -413,17 +462,9 @@ if __name__ == '__main__':
     
 #%% Correlate after convergence
     N_conv = 50000
-    E_conv = Energies[0.58][N_conv:]
-    #plt.plot(E_conv)
-    interval = 10000
-    center = len(E_conv)/2
-    sample = E_conv[center-interval/2:center+interval/2]
-    corr = []
-    for i in range(center-interval,center+interval):
-        c = np.corrcoef(E_conv[i:interval+i],sample)
-        corr.append(c)
-#    corr = np.correlate(E_conv,E_conv[10000:20000])
-    plt.plot(corr)
+    check_correlation_at_convergence(Energies[dr_c][N_conv:])
+
+    #%%    corr = np.correlate(E_conv,E_conv[10000:20000])
 
 
 #%%
