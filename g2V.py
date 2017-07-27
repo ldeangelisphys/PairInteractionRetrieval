@@ -1,8 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.interpolate import interp1d
+#from scipy.interpolate import interp1d
 import time
 from mpl_toolkits.mplot3d import Axes3D
+from matplotlib import cm
 
 class par:
     def __init__(self):
@@ -226,8 +227,25 @@ def initialize_system(N_particles,L_box,dim,how):
     """Initialize an array of positions of N particles in a box of size L"""
     
     if how == 'random':
-        particles = np.random.rand(N_particles,dim)*L_box
-    
+        particles = np.random.rand(N_particles,dim)*L_box         
+    elif how == 'array' or 'array_w_noise':
+        n = np.power(N_particles,1.0/dim)
+        n = int(n) + 1
+        n_generated = n**dim
+        X,Y,Z = np.mgrid[0:n,0:n,0:n]
+        more_particles = np.array([X.flatten(),Y.flatten(),Z.flatten()]).T
+        n_excess = n_generated - N_particles
+        # Remove the particles in excess (randomly)
+        to_remove = np.random.permutation(n_generated)[:n_excess]
+        particles = np.delete(more_particles, to_remove, axis = 0)
+        # normalize
+        particles = particles * L_box / n
+        
+        if how == 'array_w_noise':
+            noise = np.random.rand(N_particles,dim) - 0.5
+            particles = particles + noise
+            
+                
     return particles
 
 def lj(r):
@@ -257,9 +275,9 @@ def calc_distances(elements,ref,L_box,R_cut):
     
 
     
-def MC_sim(particles,L_box,N_iterations,v,R_cut):
+def MC_sim(particles,L_box,N_iterations,dr_coeff,v,R_cut):
     """Performs a Monte Carlo simulation"""
-
+#%%
     (N_particles,dim) = np.shape(particles)
     E = np.zeros(N_iterations+1) #TODO initial energy       
     
@@ -268,24 +286,24 @@ def MC_sim(particles,L_box,N_iterations,v,R_cut):
     random_extraction = np.random.rand(N_iterations)
     
     MC_move = 0
-
+#%%
     for n in range(N_iterations):
         
-        #Propose a movement
+        #%%Propose a movement
         chosen_one = np.random.randint(N_particles)
-        dr = np.random.rand(dim)
-        #Calculate the difference in energy
+        dr = dr_coeff*np.random.rand(dim)
+        #%%Calculate the difference in energy
         other_particles = np.delete(particles,chosen_one,0)
         old_particle = particles[chosen_one]
         new_particle = (old_particle + dr)%L_box
-        # Apply periodic Boundary conditions and exclude particles outside R_cut
+        #%% Apply periodic Boundary conditions and exclude particles outside R_cut
         # Particles at a distance > R_cut don't contribute to the energy
         old_distances = calc_distances(other_particles,old_particle,L_box,R_cut)   
         new_distances = calc_distances(other_particles,new_particle,L_box,R_cut)
         old_histo,bins  = np.histogram(old_distances, bins = v.bin)
         new_histo,bins  = np.histogram(new_distances, bins = v.bin)
         dE = np.sum((new_histo-old_histo)*v.v)
-        #dE = np.sum(potential(new_distances)) - np.sum(potential(old_distances))
+        #%%dE = np.sum(potential(new_distances)) - np.sum(potential(old_distances))
         #Accept or decline the movement
         acc_prob = np.min([1,np.exp(-dE)])
         if random_extraction[n] < acc_prob:
@@ -303,12 +321,12 @@ def MC_sim(particles,L_box,N_iterations,v,R_cut):
 
     return particles,E
             
-def test_montecarlo():
+def test_montecarlo(N_iter = 1000, dr_coeff = 0.58):
     """ Test the MC simulation using the example in hte paper byLyubartsev and Laaksonen"""
     
     v = par()    
     
-    v.r,v.v = get_g('/home/deangelis/DATA/ReverseMC/vtest.dat')
+    v.r,v.v = get_g('D:/Google Drive/Potential Retrieval/vtest.txt')
     v.bin = np.append(0,np.append(0.5*(v.r[1:]+v.r[:-1]),float('Inf')))  
     #v_f = interp1d(r,v)
 
@@ -316,38 +334,74 @@ def test_montecarlo():
     N_particles = 50
     dim = 3
     # Initialize the system at a random distribution
-    starting = initialize_system(N_particles,L_box,dim,'random')
+    starting = initialize_system(N_particles,L_box,dim,'array_w_noise')
 
-    particles,E = MC_sim(starting,L_box,100,v,v.r[-1])
+    particles,E = MC_sim(starting,L_box,N_iter,dr_coeff,v,v.r[-1])
     
     
     #Replicate the system that I considered periodic
     more_particles = replicate_3D(particles,20)
     #plot it    
     [xp,yp,zp] = np.transpose(more_particles)
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    ax.scatter(xp, yp, zp)
+#    fig = plt.figure()
+#    ax = fig.add_subplot(111, projection='3d')
+#    ax.scatter(xp, yp, zp)
     # Calculate pair correlation function
     gm,rm,im = pair_correlation_function_3D(xp,yp,zp,L_box*3.,9.75,0.5)
     #And import the paper one
-    rt,gt = get_g('/home/deangelis/DATA/ReverseMC/gtest.dat')
-    #plot it together with the one given by the paper
+    rt,gt = get_g('D:/Google Drive/Potential Retrieval/gtest.txt')       #plot it together with the one given by the paper
     plt.figure()
     plt.plot(rm,gm)
     plt.plot(rt,gt)
     
-    return particles,E
+    return particles,E,gm
     
     
             
 if __name__ == '__main__':
 
+    g = par()
+    g.r,g.v = get_g('D:/Google Drive/Potential Retrieval/gtest.txt')
+    N_mcs = 50000
+    
+    
     start = time.time()
-    particles,E = test_montecarlo()    
+    
+    g_list = []
+    Energies = {}
+#    for i in range(1):
+    coeffs = [0.5,1.0,1.5]
+    for c in coeffs:
+        #%%
+        start = time.time()
+        particles,E,gav = test_montecarlo(N_iter = N_mcs, dr_coeff = c)
+        plt.close('all')
+        elapsed = time.time() - start
+        print 'Done in %d s' % elapsed
+        #%%
+        g_list.append(gav)
+        Energies[c] = E
+#%% Plot the convergence test
 
-    
-    
-    end = time.time()
-    duration = end - start
-    print 'Done in %.1f s' % duration
+    fig = plt.figure(figsize = (8,6 ))
+    for c in coeffs:
+        plt.plot(Energies[c], label = c, color = cm.gnuplot(c), linewidth = 2)
+        plt.xscale('log')
+    plt.legend(loc = 3)
+    plt.xlabel('# iteration')
+    plt.ylabel('Energy/KT')
+    plt.savefig('D:/Google Drive/Potential Retrieval/convergence_%dmcs.png' % N_mcs, dpi = 600)
+#%%####
+
+
+#    g_arr = np.array(g_list)
+#    g_av = np.average(g_list, axis = 0)
+#    g_std = np.std(g_list, axis = 0)
+#    plt.errorbar(g.r,g_av,yerr = g_std, color = 'red')
+#    plt.plot(g.r,g.v, color = 'green')
+#
+#
+#
+#    end = time.time()
+#    duration = end - start
+#    print 'Done in %.1f s' % duration
