@@ -302,20 +302,24 @@ def MC_step(particles,chosen_one,dr,R_cut,v):
         dE = 0
 
     return dE,move
+            
+def run_montecarlo(n_run, dr_coeff = 0.58):
+    """ Test the MC simulation using the example in hte paper byLyubartsev and Laaksonen"""
     
-def MC_sim(particles,L_box,N_iterations,dr_coeff,v,R_cut):
-    """Performs a Monte Carlo simulation"""
+    v = par()    
+    
+    v.r,v.v = get_g('D:/Google Drive/Potential Retrieval/vtest.txt')
+    v.bin = np.append(0,np.append(0.5*(v.r[1:]+v.r[:-1]),float('Inf')))
+    R_cut = v.r[-1]
+    #v_f = interp1d(r,v)
 
-
-    (N_particles,dim) = np.shape(particles)
-    E = np.zeros(N_iterations+1) #TODO initial energy
     
-    # Initialize N_iterations random extractions
-#    random_extraction = np.random.rand(N_iterations)
-    
+    # Initialize the system at a random distribution
+    particles = initialize_system(N_particles,L_box,dim,'array_w_noise')
+    E = np.zeros(N_mcs+1) #TODO initial energy
     MC_move = 0
 
-    for n in range(N_iterations):
+    for n in range(N_mcs):
         
         chosen_one = np.random.randint(N_particles)
         dr = dr_coeff*np.random.rand(dim)
@@ -327,22 +331,6 @@ def MC_sim(particles,L_box,N_iterations,dr_coeff,v,R_cut):
 
     print MC_move
 
-    return particles,E
-            
-def run_montecarlo(n_run, N_iter = 1000, dr_coeff = 0.58):
-    """ Test the MC simulation using the example in hte paper byLyubartsev and Laaksonen"""
-    
-    v = par()    
-    
-    v.r,v.v = get_g('D:/Google Drive/Potential Retrieval/vtest.txt')
-    v.bin = np.append(0,np.append(0.5*(v.r[1:]+v.r[:-1]),float('Inf')))  
-    #v_f = interp1d(r,v)
-
-    
-    # Initialize the system at a random distribution
-    starting = initialize_system(N_particles,L_box,dim,'array_w_noise')
-
-    particles,E = MC_sim(starting,L_box,N_iter,dr_coeff,v,v.r[-1])
     
     
     #Replicate the system that I considered periodic
@@ -460,7 +448,7 @@ if __name__ == '__main__':
     for i,c in enumerate(coeffs):
         #%%
         start = time.time()
-        particles,E,gav = run_montecarlo(i, N_iter = N_mcs, dr_coeff = c)
+        particles,E,gav = run_montecarlo(i, dr_coeff = c)
         plot_conf(particles,N_mcs,i)
         elapsed = time.time() - start
         print 'Done in %d s' % elapsed
