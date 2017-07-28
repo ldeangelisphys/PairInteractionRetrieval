@@ -526,9 +526,9 @@ if __name__ == '__main__':
 
     
     # Define a potential
- #   v_r,v_trial = get_g(root_dir + 'vtest.txt')
-    v_r,v_trial = g_th_r, -np.log(g_th)
-#    v_trial[0] = 100000 # to account for the infinity at the beginning
+#    v_r,v_trial = get_g(root_dir + 'vtest.txt')
+#    v_r,v_trial = g_th_r, -np.log(g_th)
+    v_r,v_trial = g_th_r, -np.log(g_th + (g_th == 0) * 1e-8) # to account for the infinity at the beginning
     v_bin = np.append(0,np.append(0.5*(v_r[1:]+v_r[:-1]),2*L_box))
     
 
