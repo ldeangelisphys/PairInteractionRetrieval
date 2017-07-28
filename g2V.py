@@ -7,6 +7,8 @@ from matplotlib import cm
 from matplotlib.ticker import MultipleLocator, FormatStrFormatter
 import subprocess
 import os
+import sys
+
 
 class par:
     def __init__(self):
@@ -16,13 +18,30 @@ class par:
 
 def check_folders_existence(f_path):    
     
-    folders_list = ['','final_g','final_configuration','final_g/all_g', 'pot_variations']
+    folders_list = ['', 'iters_output']
+    for k in range(N_iter):
+        folders_list.append('iters_output/all_g_%03d' % (k+1))
+
 
     for folder in folders_list:        
         if not os.path.exists(f_path + folder):
             os.makedirs(f_path + folder)
             
     return
+
+
+def print_progress(done,total):
+    """print a progress bar"""
+    
+    percent = 100.0*done/(total)    
+    bar = int(0.2*percent)    
+    
+    sys.stdout.write('\r')
+    sys.stdout.write('[%-20s] %d%%' % ('='*bar, percent))
+    sys.stdout.flush()
+    
+    return
+
 
 def pair_correlation_function_2D(kind, x, y, S, rMax, dr): 
     """
@@ -315,7 +334,7 @@ def MC_step(particles,chosen_one,dr,R_cut,v):
 
     return dE,move
             
-def run_montecarlo(v, n_run, dr_coeff = 0.58):
+def run_montecarlo(v,iteration , n_run, dr_coeff = 0.58):
     """ Test the MC simulation using the example in hte paper byLyubartsev and Laaksonen"""
     
     start = time.time()
@@ -341,23 +360,27 @@ def run_montecarlo(v, n_run, dr_coeff = 0.58):
         E[n+1] = E[n] + dE
         MC_move += this_move
         
-        ## After convergence calc and save g every N_corr steps
-        if((n > N_conv)&(n%N_corr==0)):
-            gmeas, Smeas = calc_and_plot_g_r(particles,n)
-            g_list.append(gmeas)
-            S_list.append(Smeas)
+        ## Every N_corr steps
+        if(n%N_corr==0):
+            print_progress(n+1,N_mcs)    
+            ## After convergence calc and save g
+            if(n > N_conv):
+                gmeas, Smeas = calc_and_plot_g_r(particles,n,iteration)
+                g_list.append(gmeas)
+                S_list.append(Smeas)
+        
             
     elapsed = time.time() - start
-    print('Done in %d s' % elapsed)
+    print(' Done in %d s' % elapsed)
     
     print('%d %% of the Monte Carlo steps were performed (%d out of %d)' % (100.0*MC_move/N_mcs, MC_move,N_mcs))
 
-    plot_conf(particles,N_mcs,i)
+    plot_conf(particles,iteration)
 
         
     return particles,E,g_list,S_list
     
-def calc_and_plot_g_r(particles,n):
+def calc_and_plot_g_r(particles,n,iteration):
     
     #Replicate the system that I considered periodic
     more_particles = replicate_3D(particles,20)
@@ -374,17 +397,18 @@ def calc_and_plot_g_r(particles,n):
     #And import the paper one
     plt.figure(figsize = (7,4))
     plt.plot(gmeas.r,gmeas.v)
-    plt.plot(gtheory.r,gtheory.v)
+    plt.plot(g_th_r,g_th)
     plt.xlabel('r')
     plt.ylabel('g(r)')
     plt.figtext(0.99, 0.99, git_v, fontsize = 8, ha = 'right', va = 'top')
-    plt.savefig(out_root + 'final_g/all_g/n%d.png' % (n), dpi = 300)
+    plt.savefig(out_root + 'iters_output/all_g_%03d/mcs_%d.png' % (iteration,n), dpi = 300)
     plt.close('all')
     
     return gmeas, Smeas
      
-def plot_convergence(Energies,coeffs):
-    fig = plt.figure(figsize = (8,6 ))
+def plot_convergence(Energies,coeffs,iteration):
+    xscale = int(np.log10(N_mcs)) + 2
+    plt.figure(figsize = (8,xscale))
     for c in coeffs:
         plt.plot(Energies[c], label = c, color = cm.gnuplot(c), linewidth = 2)
         plt.xscale('log')
@@ -392,13 +416,13 @@ def plot_convergence(Energies,coeffs):
     plt.xlabel('# iteration')
     plt.ylabel('Energy/KT')
     plt.figtext(0.99, 0.99, git_v, fontsize = 8, ha = 'right', va = 'top')
-    plt.savefig(out_root + 'convergence_%dmcs.png' % N_mcs, dpi = 600)
+    plt.savefig(out_root + 'iters_output/convergence_%03d.png' % iteration, dpi = 600)
     plt.close('all')
 
     return
     
     
-def plot_conf(particles,N_mcs,n_conf):
+def plot_conf(particles,iteration):
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
     ax.scatter(particles[:,0],particles[:,1],particles[:,2])
@@ -406,7 +430,7 @@ def plot_conf(particles,N_mcs,n_conf):
     ax.set_ylabel('y')
     ax.set_zlabel('z')
     plt.figtext(0.99, 0.99, git_v, fontsize = 8, ha = 'right', va = 'top')
-    plt.savefig(out_root + 'final_configuration/sim_%dmcs_n%d.png' % (N_mcs,n_conf), dpi = 600)
+    plt.savefig(out_root + 'iters_output/final_conf_%03d.png' % (iteration), dpi = 600)
     plt.close('all')
     
     return     
@@ -447,7 +471,7 @@ def check_correlation_at_convergence(E_conv, N_display = 20000):
 
     return
     #%%
-def calc_dist_average(g_list, name):
+def calc_dist_average(g_list, name, iteration):
     Nm = len(g_list)
     r = g_list[0].r
     gsum2 = np.zeros(len(r))
@@ -458,20 +482,20 @@ def calc_dist_average(g_list, name):
     gav = gsum/Nm
     gstd = np.sqrt(gsum2/Nm - gav**2) * np.sqrt(Nm) / np.sqrt(Nm-1.0)  
 
-    np.savetxt(out_root + 'final_g/%s_av_%dmcs_conv%d_skip%d.txt' % (name,N_mcs,N_conv,N_corr),np.transpose([r,gav,gstd]), fmt = '%.04f', delimiter = '\t', header = 'r\tg(r)\tsigma(g)')
+    np.savetxt(out_root + 'iters_output/%s_av_%03d.txt' % (name,iteration),np.transpose([r,gav,gstd]), fmt = '%.04f', delimiter = '\t', header = 'r\tg(r)\tsigma(g)')
     
     plt.figure(figsize = (6,4.5))
     #Plot theory
     if name == 'g':
-        plt.plot(gtheory.r,gtheory.v,label = 'expected', zorder = 0)
+        plt.plot(g_th_r,g_th,label = 'expected', zorder = 0)
     elif name == 'S':
-        plt.plot(gtheory.r,gtheory.v * 4 * np.pi * gtheory.r**2,label = 'expected', zorder = 0)
+        plt.plot(g_th_r, g_th * 4 * np.pi * g_th_r**2,label = 'expected', zorder = 0)
     plt.errorbar(r,gav,yerr = gstd,marker = 'o', linestyle = 'None', label = 'measured', zorder = 1)
     plt.xlabel(r'$r$')
     plt.ylabel(r'$%s(r)$' % name)
     plt.figtext(0.99, 0.99, git_v, fontsize = 8, ha = 'right', va = 'top')
     plt.legend()
-    plt.savefig(out_root + 'final_g/%s_av_%dmcs_conv%d_skip%d.png' % (name,N_mcs,N_conv,N_corr), dpi = 300)
+    plt.savefig(out_root + 'iters_output/%s_av_%03d.png' % (name,iteration), dpi = 300)
     plt.close('all')
     
     return gav,gstd
@@ -480,17 +504,20 @@ def calc_dist_average(g_list, name):
             
 if __name__ == '__main__':
 
-    
+    root_dir = 'L:/NS/kuiperslab/Lorenzo/DATA/MC_SIM/'
     git_v = subprocess.check_output(["git", "rev-parse", "--verify", "--short", "HEAD"])
     git_v = git_v.strip().decode('UTF-8')
 
-    gtheory = par()
-    gtheory.r,gtheory.v = get_g('D:/Google Drive/Potential Retrieval/gtest.txt')
-    Stheory = par()
-    Stheory.r,Stheory.v = get_g('D:/Google Drive/Potential Retrieval/gtest.txt')
-    Stheory.v *= 4 * np.pi * Stheory.r**2
+
+    g_th_r,g_th,_ = np.loadtxt(root_dir + 'gtest.txt', dtype = 'float', unpack = 'true')
+#
+#    gtheory = par()
+#    gtheory.r,gtheory.v = get_g(root_dir + 'g_paper.txt')
+#    Stheory = par()
+#    Stheory.r,Stheory.v = get_g(root_dir + 'g_paper.txt')
+#    Stheory.v *= 4 * np.pi * Stheory.r**2
     
-    N_mcs = 100 * 1000
+    N_mcs = int(8e+4)
     dr_c = 0.58
     L_box = 20
     N_particles = 50
@@ -499,46 +526,50 @@ if __name__ == '__main__':
     N_conv = 50000
     # MC steps to wait between saving observable
     N_corr = 2000
+    # Number of iterations of Potential retrieval alghoritm
+    N_iter = 2
+
     
-    out_root = 'D:/Google Drive/Potential Retrieval/' + '%dMCS_conv%d/' % (N_mcs,N_conv)
+    out_root = root_dir + '%.1EMCS_ITER%03d/' % (N_mcs,N_iter)
     check_folders_existence(out_root)
 
     
     # Define a potential
-#    v_r,v_trial = get_g('D:/Google Drive/Potential Retrieval/vtest.txt')
-    v_r,v_trial = gtheory.r, -np.log(gtheory.v)
-    v_trial[0] = 100000 # to account for the infinity at the beginning
+    v_r,v_trial = get_g(root_dir + 'vtest.txt')
+#    v_r,v_trial = gtheory.r, -np.log(gtheory.v)
+#    v_trial[0] = 100000 # to account for the infinity at the beginning
     v_bin = np.append(0,np.append(0.5*(v_r[1:]+v_r[:-1]),2*L_box))
     
 
 
     # If I want to try different dr coefficients
     coeffs = [dr_c]
-    Energies = {}
     v_list = []
     v_list.append(v_trial)
     
-    N_iter = 5
 #%%    
     for k in range(N_iter):
+
+        Energies = {}
         
+        print('Iteration #%d' % (k + 1))        
 
         for i,c in enumerate(coeffs):
             
     
             #%%
-            particles,E,g_list,S_list = run_montecarlo(v_list[k], i, dr_coeff = c)
+            particles,E,g_list,S_list = run_montecarlo(v_list[k], k+1, i, dr_coeff = c)
             Energies[c] = E
             
     #%% Plot the convergence test
-        plot_convergence(Energies,coeffs)
+        plot_convergence(Energies,coeffs, k+1)
         
     #%% Correlate after convergence
     #    check_correlation_at_convergence(Energies[dr_c][N_conv:])
     
     #%% Save the statistical average of g
-        gav,gstd = calc_dist_average(g_list,'g')
-        Sav,Sstd = calc_dist_average(S_list,'S')
+        gav,gstd = calc_dist_average(g_list,'g',k+1)
+        Sav,Sstd = calc_dist_average(S_list,'S',k+1)
         
     #%% Define what part of the calc g can be compared to the known one
         r_min = np.where(S_list[0].r == Stheory.r[0])[0][0]
@@ -553,7 +584,7 @@ if __name__ == '__main__':
         
         damp = 0.5
         
-        for nskip in range(3,5):
+        for nskip in range(1,5):
             try:
                 delta_v = np.linalg.solve(S_cov[nskip:,nskip:],delta_S[nskip:]) * damp
                 break
@@ -565,8 +596,14 @@ if __name__ == '__main__':
         new_v[nskip:] += delta_v
         v_list.append(new_v)
             
+        # Save the new potential
+        np.savetxt(out_root + 'iters_output/pot_%03d.txt' % (k+1),np.transpose([v_r,new_v]), fmt = '%.04f', delimiter = '\t', header = 'r\t\tV(r)')
+        # And plot it with the others
         plt.figure(figsize = (6,4.5))
-        for vv in v_list:
-            plt.plot(v_r[1:],vv[1:])
-        plt.savefig(out_root + 'pot_variations/000-%03d.png' % (k+1),dpi = 300)
+        for i,vv in enumerate(v_list):
+            plt.plot(v_r[1:],vv[1:], label = 'iteration #%03d' % i)
+            plt.xlabel(r'$r$')
+            plt.ylabel(r'$V(r)$')
+        plt.legend()    
+        plt.savefig(out_root + 'iters_output/pot_000-%03d.png' % (k+1),dpi = 300)
         plt.close('all')
