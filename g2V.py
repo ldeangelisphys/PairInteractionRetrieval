@@ -518,7 +518,7 @@ if __name__ == '__main__':
     # MC steps to wait between saving observable
     N_corr = 2000
     # Number of iterations of Potential retrieval alghoritm
-    N_iter = 5
+    N_iter = 6
 
     
     out_root = root_dir + '%.1EMCS_ITER%03d/' % (N_mcs,N_iter)
@@ -526,8 +526,8 @@ if __name__ == '__main__':
 
     
     # Define a potential
-    v_r,v_trial = get_g(root_dir + 'vtest.txt')
-#    v_r,v_trial = gtheory.r, -np.log(gtheory.v)
+ #   v_r,v_trial = get_g(root_dir + 'vtest.txt')
+    v_r,v_trial = g_th_r, -np.log(g_th)
 #    v_trial[0] = 100000 # to account for the infinity at the beginning
     v_bin = np.append(0,np.append(0.5*(v_r[1:]+v_r[:-1]),2*L_box))
     
