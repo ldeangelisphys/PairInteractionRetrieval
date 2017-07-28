@@ -365,9 +365,9 @@ def run_montecarlo(v,iteration , n_run, dr_coeff = 0.58):
             print_progress(n+1,N_mcs)    
             ## After convergence calc and save g
             if(n > N_conv):
-                gmeas, Smeas = calc_and_plot_g_r(particles,n,iteration)
-                g_list.append(gmeas)
-                S_list.append(Smeas)
+                g_meas, S_meas, r_meas_Sg = calc_and_plot_g_r(particles,n,iteration)
+                g_list.append(g_meas)
+                S_list.append(S_meas)
         
             
     elapsed = time.time() - start
@@ -378,7 +378,7 @@ def run_montecarlo(v,iteration , n_run, dr_coeff = 0.58):
     plot_conf(particles,iteration)
 
         
-    return particles,E,g_list,S_list
+    return particles,E,g_list,S_list,r_meas_Sg
     
 def calc_and_plot_g_r(particles,n,iteration):
     
@@ -390,13 +390,10 @@ def calc_and_plot_g_r(particles,n,iteration):
 #    ax = fig.add_subplot(111, projection='3d')
 #    ax.scatter(xp, yp, zp)
     # Calculate pair correlation function
-    gmeas = par()
-    Smeas = par()
-    gmeas.v,Smeas.v,gmeas.r,_ = pair_correlation_function_3D(xp,yp,zp,L_box*3.,9.75,0.5)
-    Smeas.r = gmeas.r
+    g_meas,S_meas,r_meas_Sg,_ = pair_correlation_function_3D(xp,yp,zp,L_box*3.,9.75,0.5)
     #And import the paper one
     plt.figure(figsize = (7,4))
-    plt.plot(gmeas.r,gmeas.v)
+    plt.plot(r_meas_Sg,g_meas)
     plt.plot(g_th_r,g_th)
     plt.xlabel('r')
     plt.ylabel('g(r)')
@@ -404,7 +401,7 @@ def calc_and_plot_g_r(particles,n,iteration):
     plt.savefig(out_root + 'iters_output/all_g_%03d/mcs_%d.png' % (iteration,n), dpi = 300)
     plt.close('all')
     
-    return gmeas, Smeas
+    return g_meas, S_meas, r_meas_Sg
      
 def plot_convergence(Energies,coeffs,iteration):
     xscale = int(np.log10(N_mcs)) + 2
@@ -471,18 +468,12 @@ def check_correlation_at_convergence(E_conv, N_display = 20000):
 
     return
     #%%
-def calc_dist_average(g_list, name, iteration):
-    Nm = len(g_list)
-    r = g_list[0].r
-    gsum2 = np.zeros(len(r))
-    gsum = np.zeros(len(r))
-    for gm in g_list:
-        gsum += gm.v
-        gsum2 += gm.v**2
-    gav = gsum/Nm
-    gstd = np.sqrt(gsum2/Nm - gav**2) * np.sqrt(Nm) / np.sqrt(Nm-1.0)  
-
-    np.savetxt(out_root + 'iters_output/%s_av_%03d.txt' % (name,iteration),np.transpose([r,gav,gstd]), fmt = '%.04f', delimiter = '\t', header = 'r\tg(r)\tsigma(g)')
+def calc_dist_average(g_list, r, name, iteration):
+    
+    g_array = np.array(g_list)
+    g_av = np.average(g_array, axis = 0)
+    g_std = np.std(g_array,axis = 0)
+    np.savetxt(out_root + 'iters_output/%s_av_%03d.txt' % (name,iteration),np.transpose([r,g_av,g_std]), fmt = '%.04f', delimiter = '\t', header = 'r\tg(r)\tsigma(g)')
     
     plt.figure(figsize = (6,4.5))
     #Plot theory
@@ -490,7 +481,7 @@ def calc_dist_average(g_list, name, iteration):
         plt.plot(g_th_r,g_th,label = 'expected', zorder = 0)
     elif name == 'S':
         plt.plot(g_th_r, g_th * 4 * np.pi * g_th_r**2,label = 'expected', zorder = 0)
-    plt.errorbar(r,gav,yerr = gstd,marker = 'o', linestyle = 'None', label = 'measured', zorder = 1)
+    plt.errorbar(r,g_av,yerr = g_std,marker = 'o', linestyle = 'None', label = 'measured', zorder = 1)
     plt.xlabel(r'$r$')
     plt.ylabel(r'$%s(r)$' % name)
     plt.figtext(0.99, 0.99, git_v, fontsize = 8, ha = 'right', va = 'top')
@@ -498,7 +489,7 @@ def calc_dist_average(g_list, name, iteration):
     plt.savefig(out_root + 'iters_output/%s_av_%03d.png' % (name,iteration), dpi = 300)
     plt.close('all')
     
-    return gav,gstd
+    return g_av,g_std
     
     #%%
             
@@ -510,14 +501,14 @@ if __name__ == '__main__':
 
 
     g_th_r,g_th,_ = np.loadtxt(root_dir + 'gtest.txt', dtype = 'float', unpack = 'true')
-#
+    S_th = g_th * 4 * np.pi * g_th_r**2
 #    gtheory = par()
 #    gtheory.r,gtheory.v = get_g(root_dir + 'g_paper.txt')
 #    Stheory = par()
 #    Stheory.r,Stheory.v = get_g(root_dir + 'g_paper.txt')
 #    Stheory.v *= 4 * np.pi * Stheory.r**2
     
-    N_mcs = int(8e+4)
+    N_mcs = int(5e+5)
     dr_c = 0.58
     L_box = 20
     N_particles = 50
@@ -527,7 +518,7 @@ if __name__ == '__main__':
     # MC steps to wait between saving observable
     N_corr = 2000
     # Number of iterations of Potential retrieval alghoritm
-    N_iter = 2
+    N_iter = 5
 
     
     out_root = root_dir + '%.1EMCS_ITER%03d/' % (N_mcs,N_iter)
@@ -558,7 +549,7 @@ if __name__ == '__main__':
             
     
             #%%
-            particles,E,g_list,S_list = run_montecarlo(v_list[k], k+1, i, dr_coeff = c)
+            particles,E,g_list,S_list,g_meas_r = run_montecarlo(v_list[k], k+1, i, dr_coeff = c)
             Energies[c] = E
             
     #%% Plot the convergence test
@@ -568,19 +559,19 @@ if __name__ == '__main__':
     #    check_correlation_at_convergence(Energies[dr_c][N_conv:])
     
     #%% Save the statistical average of g
-        gav,gstd = calc_dist_average(g_list,'g',k+1)
-        Sav,Sstd = calc_dist_average(S_list,'S',k+1)
+        gav,gstd = calc_dist_average(g_list,g_meas_r,'g',k+1)
+        Sav,Sstd = calc_dist_average(S_list,g_meas_r,'S',k+1)
         
     #%% Define what part of the calc g can be compared to the known one
-        r_min = np.where(S_list[0].r == Stheory.r[0])[0][0]
-        r_max = np.where(S_list[0].r == Stheory.r[-1])[0][0] + 1
+        r_min = np.where(g_meas_r == g_th_r[0])[0][0]
+        r_max = np.where(g_meas_r == g_th_r[-1])[0][0] + 1
     #%% Perform the retrieval alghorithm
         
-        S_array = np.array([single_S.v[r_min:r_max] for single_S in S_list])
+        S_array = np.array([single_S[r_min:r_max] for single_S in S_list])
         S_av = np.average(S_array, axis = 0)
         S_cov = np.cov(S_array,rowvar = 0)
         
-        delta_S = S_av - Stheory.v
+        delta_S = S_av - S_th
         
         damp = 0.5
         
