@@ -540,7 +540,7 @@ if __name__ == '__main__':
     
     PR_par = {}
     # Number of iterations of Potential retrieval alghoritm
-    PR_par['N_iter'] = 40
+    PR_par['N_iter'] = 150
     PR_par['damping'] = 1.0
 
     
@@ -612,10 +612,11 @@ if __name__ == '__main__':
             
         # Save the new potential
         np.savetxt(out_root + 'iters_output/pot_%03d.txt' % (k+1),np.transpose([v_r,new_v]), fmt = '%.04f', delimiter = '\t', header = 'r\t\tV(r)')
-        # And plot it with the others
+        # And plot it with the others (max 10 others)
+        to_skip = int(len(v_list)/10) + 1
         plt.figure(figsize = (6,4.5))
-        for i,vv in enumerate(v_list):
-            plt.plot(v_r[1:],vv[1:], label = 'iteration #%03d' % i)
+        for i,vv in enumerate(v_list[::to_skip]):
+            plt.plot(v_r[1:],vv[1:], label = 'iteration #%03d' % i*to_skip)
             plt.xlabel(r'$r$')
             plt.ylabel(r'$V(r)$')
         plt.legend()    
