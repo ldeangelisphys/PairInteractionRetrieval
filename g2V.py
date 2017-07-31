@@ -380,32 +380,30 @@ def run_montecarlo(v,iteration , n_run, dr_coeff = 0.58):
         
     return particles,E,g_list,S_list,r_meas_Sg
     
-def calc_and_plot_g_r(particles,n,iteration):
+def calc_and_plot_g_r(particles,n,iteration, save_plot = False):
     
     #Replicate the system that I considered periodic
     more_particles = replicate_3D(particles,20)
-    #plot it    
     [xp,yp,zp] = np.transpose(more_particles)
-#    fig = plt.figure()
-#    ax = fig.add_subplot(111, projection='3d')
-#    ax.scatter(xp, yp, zp)
+        
     # Calculate pair correlation function
     g_meas,S_meas,r_meas_Sg,_ = pair_correlation_function_3D(xp,yp,zp,L_box*3.,9.75,0.5)
-    #And import the paper one
-    plt.figure(figsize = (7,4))
-    plt.plot(r_meas_Sg,g_meas)
-    plt.plot(g_th_r,g_th)
-    plt.xlabel('r')
-    plt.ylabel('g(r)')
-    plt.figtext(0.99, 0.99, git_v, fontsize = 8, ha = 'right', va = 'top')
-    plt.savefig(out_root + 'iters_output/all_g_%03d/mcs_%d.png' % (iteration,n), dpi = 300)
-    plt.close('all')
+
+    if save_plot:
+        plt.figure(figsize = (7,4))
+        plt.plot(r_meas_Sg,g_meas)
+        plt.plot(g_th_r,g_th)
+        plt.xlabel('r')
+        plt.ylabel('g(r)')
+        plt.figtext(0.99, 0.99, git_v, fontsize = 8, ha = 'right', va = 'top')
+        plt.savefig(out_root + 'iters_output/all_g_%03d/mcs_%d.png' % (iteration,n), dpi = 300)
+        plt.close('all')
     
     return g_meas, S_meas, r_meas_Sg
      
 def plot_convergence(Energies,coeffs,iteration):
-    xscale = int(np.log10(N_mcs)) + 2
-    plt.figure(figsize = (8,xscale))
+    xscale = int(np.log10(N_mcs)) + 4
+    plt.figure(figsize = (xscale,6))
     for c in coeffs:
         plt.plot(Energies[c], label = c, color = cm.gnuplot(c), linewidth = 2)
         plt.xscale('log')
@@ -508,7 +506,7 @@ if __name__ == '__main__':
 #    Stheory.r,Stheory.v = get_g(root_dir + 'g_paper.txt')
 #    Stheory.v *= 4 * np.pi * Stheory.r**2
     
-    N_mcs = int(5e+5)
+    N_mcs = int(1e+6)
     dr_c = 0.58
     L_box = 20
     N_particles = 50
@@ -518,7 +516,7 @@ if __name__ == '__main__':
     # MC steps to wait between saving observable
     N_corr = 2000
     # Number of iterations of Potential retrieval alghoritm
-    N_iter = 6
+    N_iter = 15
 
     
     out_root = root_dir + '%.1EMCS_ITER%03d/' % (N_mcs,N_iter)
@@ -528,7 +526,7 @@ if __name__ == '__main__':
     # Define a potential
 #    v_r,v_trial = get_g(root_dir + 'vtest.txt')
 #    v_r,v_trial = g_th_r, -np.log(g_th)
-    v_r,v_trial = g_th_r, -np.log(g_th + (g_th == 0) * 1e-8) # to account for the infinity at the beginning
+    v_r,v_trial = g_th_r, - np.log(g_th + (g_th == 0) * 1e-8) # to account for the infinity at the beginning
     v_bin = np.append(0,np.append(0.5*(v_r[1:]+v_r[:-1]),2*L_box))
     
 
@@ -573,7 +571,7 @@ if __name__ == '__main__':
         
         delta_S = S_av - S_th
         
-        damp = 0.5
+        damp = 10.0
         
         for nskip in range(1,5):
             try:
