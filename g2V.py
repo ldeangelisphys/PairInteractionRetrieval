@@ -1,3 +1,4 @@
+import configparser
 import numpy as np
 import matplotlib.pyplot as plt
 #from scipy.interpolate import interp1d
@@ -19,7 +20,7 @@ class par:
 def check_folders_existence(f_path):    
     
     folders_list = ['', 'iters_output']
-    for k in range(N_iter):
+    for k in range(PR_par['N_iter']):
         folders_list.append('iters_output/all_g_%03d' % (k+1))
 
 
@@ -167,12 +168,11 @@ def pair_correlation_function_2D(kind, x, y, S, rMax, dr):
     return (g_average, radii)
     
     
-def replicate_3D(particles,L_box):
-    N,dim = np.shape(particles)
+def replicate_3D(particles):
     shifts = [[0,0,1],[0,0,2],[0,1,0],[0,1,1],[0,1,2],[0,2,0],[0,2,1],[0,2,2],[1,0,0],[1,0,1],[1,0,2],[1,1,0],[1,1,1],[1,1,2],[1,2,0],[1,2,1],[1,2,2],[2,0,0],[2,0,1],[2,0,2],[2,1,0],[2,1,1],[2,1,2],[2,2,0],[2,2,1],[2,2,2]]
     more_particles = particles
     for delta in shifts:
-        more_particles = np.append(more_particles,particles + L_box*np.array(delta),axis = 0)
+        more_particles = np.append(more_particles,particles + MC_par['L_box']*np.array(delta),axis = 0)
     return more_particles
 
 
@@ -256,26 +256,26 @@ def init_V(g):
     """Initialize the potential with the effective potential function approximation"""
     return -np.log(g)
 
-def initialize_system(N_particles,L_box,dim,how):
+def initialize_system(how):
     """Initialize an array of positions of N particles in a box of size L"""
     
     if how == 'random':
-        particles = np.random.rand(N_particles,dim)*L_box         
-    elif how == 'array' or 'array_w_noise':
-        n = np.power(N_particles,1.0/dim)
+        particles = np.random.rand(MC_par['N_particles'],MC_par['dim'])*MC_par['L_box']         
+    elif how == 'array' or MC_par['init_conf']:
+        n = np.power(MC_par['N_particles'],1.0/MC_par['dim'])
         n = int(n) + 1
-        n_generated = n**dim
+        n_generated = n**MC_par['dim']
         X,Y,Z = np.mgrid[0:n,0:n,0:n]
         more_particles = np.array([X.flatten(),Y.flatten(),Z.flatten()]).T
-        n_excess = n_generated - N_particles
+        n_excess = n_generated - MC_par['N_particles']
         # Remove the particles in excess (randomly)
         to_remove = np.random.permutation(n_generated)[:n_excess]
         particles = np.delete(more_particles, to_remove, axis = 0)
         # normalize
-        particles = particles * L_box / n
+        particles = particles * MC_par['L_box'] / n
         
-        if how == 'array_w_noise':
-            noise = np.random.rand(N_particles,dim) - 0.5
+        if how == MC_par['init_conf']:
+            noise = np.random.rand(MC_par['N_particles'],MC_par['dim']) - 0.5
             particles = particles + noise
             
                 
@@ -288,13 +288,13 @@ def lj(r):
     
     return 4*eps*((sigma/r)**12-(sigma/r)**6)   
   
-def calc_distances(elements,ref,L_box,R_cut):
+def calc_distances(elements,ref,R_cut):
     
     starting_shape = np.shape(elements)
     # Calculate the dx and dy in the next unit cell (+- L_box)
     delta2 = np.reshape((elements - ref)**2,-1)
-    delta2_p = np.reshape((elements - ref + L_box)**2,-1)
-    delta2_m = np.reshape((elements - ref - L_box)**2,-1)
+    delta2_p = np.reshape((elements - ref + MC_par['L_box'])**2,-1)
+    delta2_m = np.reshape((elements - ref - MC_par['L_box'])**2,-1)
     # And take the distance that is minimum in each direction
     delta_min = np.min([delta2,delta2_p,delta2_m], axis = 0)
     # Reshape the array in the old form, so that we can work on it
@@ -312,11 +312,11 @@ def MC_step(particles,chosen_one,dr,R_cut,v):
     #%%Calculate the difference in energy
     other_particles = np.delete(particles,chosen_one,0)
     old_particle = particles[chosen_one]
-    new_particle = (old_particle + dr)%L_box
+    new_particle = (old_particle + dr)%MC_par['L_box']
     #%% Apply periodic Boundary conditions and exclude particles outside R_cut
     # Particles at a distance > R_cut don't contribute to the energy
-    old_distances = calc_distances(other_particles,old_particle,L_box,R_cut)   
-    new_distances = calc_distances(other_particles,new_particle,L_box,R_cut)
+    old_distances = calc_distances(other_particles,old_particle,R_cut)   
+    new_distances = calc_distances(other_particles,new_particle,R_cut)
     old_histo,bins  = np.histogram(old_distances, bins = v_bin)
     new_histo,bins  = np.histogram(new_distances, bins = v_bin)
     dE = np.sum((new_histo-old_histo)*v)
@@ -346,14 +346,14 @@ def run_montecarlo(v,iteration , n_run, dr_coeff = 0.58):
     S_list = []
     
     # Initialize the system at a random distribution
-    particles = initialize_system(N_particles,L_box,dim,'array_w_noise')
-    E = np.zeros(N_mcs+2) #TODO initial energy
+    particles = initialize_system(MC_par['init_conf'])
+    E = np.zeros(MC_par['N_mcs']+2) #TODO initial energy
     MC_move = 0
 
-    for n in range(N_mcs+1):
+    for n in range(MC_par['N_mcs']+1):
         
-        chosen_one = np.random.randint(N_particles)
-        dr = dr_coeff*np.random.rand(dim)
+        chosen_one = np.random.randint(MC_par['N_particles'])
+        dr = dr_coeff*np.random.rand(MC_par['dim'])
         ####
         dE,this_move = MC_step(particles,chosen_one,dr,R_cut,v)
         ####
@@ -361,10 +361,10 @@ def run_montecarlo(v,iteration , n_run, dr_coeff = 0.58):
         MC_move += this_move
         
         ## Every N_corr steps
-        if(n%N_corr==0):
-            print_progress(n+1,N_mcs)    
+        if(n % MC_par['N_corr']==0):
+            print_progress(n+1,MC_par['N_mcs'])    
             ## After convergence calc and save g
-            if(n > N_conv):
+            if(n > MC_par['N_conv']):
                 g_meas, S_meas, r_meas_Sg = calc_and_plot_g_r(particles,n,iteration)
                 g_list.append(g_meas)
                 S_list.append(S_meas)
@@ -373,7 +373,7 @@ def run_montecarlo(v,iteration , n_run, dr_coeff = 0.58):
     elapsed = time.time() - start
     print(' Done in %d s' % elapsed)
     
-    print('%d %% of the Monte Carlo steps were performed (%d out of %d)' % (100.0*MC_move/N_mcs, MC_move,N_mcs))
+    print('%d %% of the Monte Carlo steps were performed (%d out of %d)' % (100.0*MC_move/MC_par['N_mcs'], MC_move,MC_par['N_mcs']))
 
     plot_conf(particles,iteration)
 
@@ -383,11 +383,11 @@ def run_montecarlo(v,iteration , n_run, dr_coeff = 0.58):
 def calc_and_plot_g_r(particles,n,iteration, save_plot = False):
     
     #Replicate the system that I considered periodic
-    more_particles = replicate_3D(particles,20)
+    more_particles = replicate_3D(particles)
     [xp,yp,zp] = np.transpose(more_particles)
         
     # Calculate pair correlation function
-    g_meas,S_meas,r_meas_Sg,_ = pair_correlation_function_3D(xp,yp,zp,L_box*3.,9.75,0.5)
+    g_meas,S_meas,r_meas_Sg,_ = pair_correlation_function_3D(xp,yp,zp,MC_par['L_box']*3.,9.75,0.5)
 
     if save_plot:
         plt.figure(figsize = (7,4))
@@ -402,7 +402,7 @@ def calc_and_plot_g_r(particles,n,iteration, save_plot = False):
     return g_meas, S_meas, r_meas_Sg
      
 def plot_convergence(Energies,coeffs,iteration):
-    xscale = int(np.log10(N_mcs)) + 4
+    xscale = int(np.log10(MC_par['N_mcs'])) + 4
     plt.figure(figsize = (xscale,6))
     for c in coeffs:
         plt.plot(Energies[c], label = c, color = cm.gnuplot(c), linewidth = 2)
@@ -432,14 +432,14 @@ def plot_conf(particles,iteration):
     #%%
 def check_correlation_at_convergence(E_conv, N_display = 20000):
 
-    plt.plot(range(N_conv,N_conv+N_display),E_conv[:N_display])
+    plt.plot(range(MC_par['N_conv'],MC_par['N_conv']+N_display),E_conv[:N_display])
     plt.xlabel('# MCstep')
     plt.ylabel('Energy')
     plt.figtext(0.99, 0.99, git_v, fontsize = 8, ha = 'right', va = 'top')
-    plt.savefig(out_root + 'after_convergence_Nmcs%d_dr%.2f.png' % (N_mcs,dr_c), dpi = 600)
+    plt.savefig(out_root + 'after_convergence_Nmcs%d_dr%.2f.png' % (MC_par['N_mcs'],MC_par['dr_c']), dpi = 600)
     plt.close('all')
     
-    interval = N_mcs/5
+    interval = MC_par['N_mcs']/5
     shift_lim = 10000
     center = len(E_conv)/2
     sample = E_conv[center-interval/2:center+interval/2]
@@ -461,7 +461,7 @@ def check_correlation_at_convergence(E_conv, N_display = 20000):
     ax.xaxis.set_major_formatter(majorFormatter)
     ax.xaxis.set_minor_locator(minorLocator)
     plt.figtext(0.99, 0.99, git_v, fontsize = 8, ha = 'right', va = 'top')
-    plt.savefig(out_root + 'after_convergence_correlation_Nmcs%d_dr%.2f.png' % (N_mcs,dr_c), dpi = 600)
+    plt.savefig(out_root + 'after_convergence_correlation_Nmcs%d_dr%.2f.png' % (MC_par['N_mcs'],MC_par['dr_c']), dpi = 600)
     plt.close('all')
 
     return
@@ -491,11 +491,31 @@ def calc_dist_average(g_list, r, name, iteration):
     
     #%%
             
+    
+def init_conf_file():
+    #%%
+    config = configparser.ConfigParser()
+    
+    config['MC parameters'] = MC_par
+    config['Potential Retrieval parameters'] = PR_par
+    DT = time.localtime()
+    config['General'] = {'date': '%02d/%02d/%d' % (DT.tm_mday, DT.tm_mon, DT.tm_year),
+                          'time': '%d:%d' % (DT.tm_hour,DT.tm_min)}
+    
+    
+    with open(out_root + 'info.cfg', 'w') as configfile:
+        config.write(configfile)
+#%%    
+    return
+    
+    
+    #%%
 if __name__ == '__main__':
 
     root_dir = 'L:/NS/kuiperslab/Lorenzo/DATA/MC_SIM/'
     git_v = subprocess.check_output(["git", "rev-parse", "--verify", "--short", "HEAD"])
     git_v = git_v.strip().decode('UTF-8')
+    
 
 
     g_th_r,g_th,_ = np.loadtxt(root_dir + 'gtest.txt', dtype = 'float', unpack = 'true')
@@ -505,39 +525,46 @@ if __name__ == '__main__':
 #    Stheory = par()
 #    Stheory.r,Stheory.v = get_g(root_dir + 'g_paper.txt')
 #    Stheory.v *= 4 * np.pi * Stheory.r**2
-    
-    N_mcs = int(1e+6)
-    dr_c = 0.58
-    L_box = 20
-    N_particles = 50
-    dim = 3    
+    MC_par = {}    #A dictionary for all MC parameters
+    MC_par['N_mcs'] = int(1e+6)
+    MC_par['dr_c'] = 0.58
+    MC_par['L_box'] = 20
+    MC_par['N_particles'] = 50
+    MC_par['dim'] = 3    
     # Monte Carlo Step at which I have convergence
-    N_conv = 50000
+    MC_par['N_conv'] = 50000
     # MC steps to wait between saving observable
-    N_corr = 2000
+    MC_par['N_corr'] = 2000
+    # Initialization of the particles in the box
+    MC_par['init_conf'] = 'array_w_noise'
+    
+    PR_par = {}
     # Number of iterations of Potential retrieval alghoritm
-    N_iter = 15
+    PR_par['N_iter'] = 40
+    PR_par['damping'] = 1.0
 
     
-    out_root = root_dir + '%.1EMCS_ITER%03d/' % (N_mcs,N_iter)
+    out_root = root_dir + '%.1EMCS_ITER%03d/' % (MC_par['N_mcs'],PR_par['N_iter'])
     check_folders_existence(out_root)
+
+    init_conf_file()
 
     
     # Define a potential
 #    v_r,v_trial = get_g(root_dir + 'vtest.txt')
 #    v_r,v_trial = g_th_r, -np.log(g_th)
     v_r,v_trial = g_th_r, - np.log(g_th + (g_th == 0) * 1e-8) # to account for the infinity at the beginning
-    v_bin = np.append(0,np.append(0.5*(v_r[1:]+v_r[:-1]),2*L_box))
+    v_bin = np.append(0,np.append(0.5*(v_r[1:]+v_r[:-1]),2*MC_par['L_box']))
     
 
 
     # If I want to try different dr coefficients
-    coeffs = [dr_c]
+    coeffs = [MC_par['dr_c']]
     v_list = []
     v_list.append(v_trial)
     
 #%%    
-    for k in range(N_iter):
+    for k in range(PR_par['N_iter']):
 
         Energies = {}
         
@@ -570,12 +597,10 @@ if __name__ == '__main__':
         S_cov = np.cov(S_array,rowvar = 0)
         
         delta_S = S_av - S_th
-        
-        damp = 10.0
-        
+                
         for nskip in range(1,5):
             try:
-                delta_v = np.linalg.solve(S_cov[nskip:,nskip:],delta_S[nskip:]) * damp
+                delta_v = np.linalg.solve(S_cov[nskip:,nskip:],delta_S[nskip:]) * PR_par['damping']
                 break
             except:
                 continue
