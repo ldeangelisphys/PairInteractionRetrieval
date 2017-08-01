@@ -468,10 +468,11 @@ def check_correlation_at_convergence(E_conv, N_display = 20000):
     #%%
 def calc_dist_average(g_list, r, name, iteration):
     
+    N_av = len(g_list)
     g_array = np.array(g_list)
     g_av = np.average(g_array, axis = 0)
     g_std = np.std(g_array,axis = 0)
-    np.savetxt(out_root + 'iters_output/%s_av_%03d.txt' % (name,iteration),np.transpose([r,g_av,g_std]), fmt = '%.04f', delimiter = '\t', header = 'r\tg(r)\tsigma(g)')
+    np.savetxt(out_root + 'iters_output/%s_av_%03d.txt' % (name,iteration),np.transpose([r,g_av,g_std]), fmt = '%.5e', delimiter = '\t', header = 'r\tg(r)\tsigma(g)')
     
     plt.figure(figsize = (6,4.5))
     #Plot theory
@@ -479,7 +480,7 @@ def calc_dist_average(g_list, r, name, iteration):
         plt.plot(g_th_r,g_th,label = 'expected', zorder = 0)
     elif name == 'S':
         plt.plot(g_th_r, g_th * 4 * np.pi * g_th_r**2,label = 'expected', zorder = 0)
-    plt.errorbar(r,g_av,yerr = g_std,marker = 'o', linestyle = 'None', label = 'measured', zorder = 1)
+    plt.errorbar(r,g_av,yerr = g_std / np.sqrt(N_av), marker = 'o', markersize = 3, linestyle = 'None', label = 'measured', zorder = 1)
     plt.xlabel(r'$r$')
     plt.ylabel(r'$%s(r)$' % name)
     plt.figtext(0.99, 0.99, git_v, fontsize = 8, ha = 'right', va = 'top')
@@ -540,8 +541,8 @@ if __name__ == '__main__':
     
     PR_par = {}
     # Number of iterations of Potential retrieval alghoritm
-    PR_par['N_iter'] = 150
-    PR_par['damping'] = 1.0
+    PR_par['N_iter'] = 50
+    PR_par['damping'] = 2.0
 
     
     out_root = root_dir + '%.1EMCS_ITER%03d/' % (MC_par['N_mcs'],PR_par['N_iter'])
@@ -552,8 +553,7 @@ if __name__ == '__main__':
     
     # Define a potential
 #    v_r,v_trial = get_g(root_dir + 'vtest.txt')
-#    v_r,v_trial = g_th_r, -np.log(g_th)
-    v_r,v_trial = g_th_r, - np.log(g_th + (g_th == 0) * 1e-8) # to account for the infinity at the beginning
+    v_r,v_trial = g_th_r, - np.log(g_th + (g_th == 0) * 1e-50) # to account for the infinity at the beginning
     v_bin = np.append(0,np.append(0.5*(v_r[1:]+v_r[:-1]),2*MC_par['L_box']))
     
 
@@ -616,7 +616,7 @@ if __name__ == '__main__':
         to_skip = int(len(v_list)/10) + 1
         plt.figure(figsize = (6,4.5))
         for i,vv in enumerate(v_list[::to_skip]):
-            plt.plot(v_r[1:],vv[1:], label = 'iteration #%03d' % i*to_skip)
+            plt.plot(v_r[1:],vv[1:], label = 'iteration #%03d' % (i*to_skip))
             plt.xlabel(r'$r$')
             plt.ylabel(r'$V(r)$')
         plt.legend()    
