@@ -255,7 +255,7 @@ def get_g(file_name):
 def init_V(g):
     """Initialize the potential with the effective potential function approximation"""
     return -np.log(g)
-
+#%%
 def initialize_system(how):
     """Initialize an array of positions of N particles in a box of size L"""
     
@@ -279,12 +279,12 @@ def initialize_system(how):
         particles = particles * MC_par['L_box'] / n
         
         if how == MC_par['init_conf']:
-            noise = np.random.rand(MC_par['N_particles'],MC_par['dim']) - 0.5
+            noise = (np.random.rand(MC_par['N_particles'],MC_par['dim']) - 0.5) * 0.5 * MC_par['L_box']/n
             particles = particles + noise
             
                 
     return particles
-
+#%%
 def lj(r):
     """Lennard-Jones potential"""
     sigma = 5.
@@ -392,11 +392,11 @@ def calc_and_plot_g_r(particles,n,iteration, save_plot = False):
     if MC_par['dim'] == 3:
         [xp,yp,zp] = np.transpose(more_particles)
         # Calculate pair correlation function
-        g_meas,S_meas,r_meas_Sg,_ = pair_correlation_function_3D(xp,yp,zp,MC_par['L_box']*MC_par['dim'],9.75,0.5)
+        g_meas,S_meas,r_meas_Sg,_ = pair_correlation_function_3D(xp,yp,zp,MC_par['L_box']*3.0,9.75,0.5)
         
     elif MC_par['dim'] == 2:
         [xp,yp] = np.transpose(more_particles)
-        g_meas,S_meas,r_meas_Sg,_ = pair_correlation_function_2D(xp,yp,MC_par['L_box']*MC_par['dim'],9.75,0.5)
+        g_meas,S_meas,r_meas_Sg,_ = pair_correlation_function_2D(xp,yp,MC_par['L_box']*3.0,r_max,dr)    # 3.0 due to periodic replication
 
     if save_plot:
         plt.figure(figsize = (7,4))
@@ -431,11 +431,11 @@ def plot_conf(particles,iteration):
     fig = plt.figure()
     if MC_par['dim'] == 3:
         ax = fig.add_subplot(111, projection='3d')
-        ax.scatter(particles[:,0],particles[:,1],particles[:,2])
+        ax.scatter(particles[:,0],particles[:,1],particles[:,2], alpha = 0.5)
         ax.set_zlabel('z')
     elif MC_par['dim'] == 2:
         ax = fig.add_subplot(111)
-        ax.scatter(particles[:,0],particles[:,1])        
+        ax.scatter(particles[:,0],particles[:,1], alpha = 0.5)        
     ax.set_xlabel('x')
     ax.set_ylabel('y')
     plt.figtext(0.99, 0.99, git_v, fontsize = 8, ha = 'right', va = 'top')
@@ -538,13 +538,13 @@ if __name__ == '__main__':
 #    Stheory.r,Stheory.v = get_g(root_dir + 'g_paper.txt')
 #    Stheory.v *= 4 * np.pi * Stheory.r**2
     MC_par = {}    #A dictionary for all MC parameters
-    MC_par['N_mcs'] = int(5e+5)
-    MC_par['dr_c'] = 0.58
-    MC_par['L_box'] = 20
-    MC_par['N_particles'] = 14
+    MC_par['N_mcs'] = int(1e+6)
+    MC_par['L_box'] = 10
+    MC_par['N_particles'] = int(MC_par['L_box']**2 * np.pi) # wavelength = 1, density of berrydennis
     MC_par['dim'] = 2  
+    MC_par['dr_c'] = 0.1 * MC_par['L_box'] / np.power(MC_par['N_particles'],1.0/MC_par['dim'])
     # Monte Carlo Step at which I have convergence
-    MC_par['N_conv'] = 50000
+    MC_par['N_conv'] = 1e+5
     # MC steps to wait between saving observable
     MC_par['N_corr'] = 2500
     # Initialization of the particles in the box
@@ -552,18 +552,22 @@ if __name__ == '__main__':
     
     PR_par = {}
     # Number of iterations of Potential retrieval alghoritm
-    PR_par['N_iter'] = 50
+    PR_par['N_iter'] = 1
     PR_par['damping'] = 0.5
+    PR_par['g_name'] = 'berrydennis'
+
 
     
-    out_root = root_dir + '%dD_%.1EMCS_ITER%03d/' % (MC_par['dim'],MC_par['N_mcs'],PR_par['N_iter'])
+    out_root = root_dir + '%s_%dD_%.1EMCS_ITER%03d/' % (PR_par['g_name'],MC_par['dim'],MC_par['N_mcs'],PR_par['N_iter'])
     check_folders_existence(out_root)
 
     init_conf_file()
 
 
     # Get the g(r)
-    g_th_r,g_th,_ = np.loadtxt(root_dir + 'gtest_%dD.txt' % MC_par['dim'], dtype = 'float', unpack = 'true')
+    g_th_r,g_th,_ = np.loadtxt(root_dir + 'g_%s.txt' % PR_par['g_name'], dtype = 'float', unpack = 'true')
+    dr = g_th_r[1] - g_th_r[0]
+    r_max = g_th_r[-1]
     if MC_par['dim'] == 2:
         S_th = g_th * 2 * np.pi * g_th_r
     elif MC_par['dim'] == 3:
@@ -606,8 +610,8 @@ if __name__ == '__main__':
         Sav,Sstd = calc_dist_average(S_list,g_meas_r,'S',k+1)
         
     #%% Define what part of the calc g can be compared to the known one
-        r_min = np.where(g_meas_r == g_th_r[0])[0][0]
-        r_max = np.where(g_meas_r == g_th_r[-1])[0][0] + 1
+        r_min = np.where(np.abs(g_meas_r - g_th_r[0]) < 1e-4)[0][0]
+        r_max = np.where(np.abs(g_meas_r - g_th_r[-1]) < 1e-4)[0][0] + 1
     #%% Perform the retrieval alghorithm
         
         S_array = np.array([single_S[r_min:r_max] for single_S in S_list])
