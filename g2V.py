@@ -9,6 +9,7 @@ from matplotlib.ticker import MultipleLocator, FormatStrFormatter
 import subprocess
 import os
 import sys
+import itertools
 
 
 class par:
@@ -43,8 +44,7 @@ def print_progress(done,total):
     
     return
 
-
-def pair_correlation_function_2D(kind, x, y, S, rMax, dr): 
+def pair_correlation_function_2D(x, y, S, rMax, dr, kind = 'unsigned'): 
     """
     Compute the two-dimensional pair correlation function, also known 
     as the radial distribution function, for a set of circular particles 
@@ -158,19 +158,19 @@ def pair_correlation_function_2D(kind, x, y, S, rMax, dr):
 
     # Average g(r) for all interior particles and compute radii 
     g_average = np.zeros(num_increments) 
+    S_average = np.zeros(num_increments)
     for i in range(num_increments): 
         radii[i] = (edges[i] + edges[i+1]) / 2. 
         rOuter = edges[i + 1] 
-        rInner = edges[i] 
+        rInner = edges[i]
+        S_average[i] = np.mean(g[:, i]) / (rOuter - rInner)
         g_average[i] = np.mean(g[:, i]) / (np.pi * (rOuter**2 - rInner**2)) 
 	
-	
-    return (g_average, radii)
+    return (g_average, S_average, radii, interior_indices)    
     
-    
-def replicate_3D(particles):
-    shifts = [[0,0,1],[0,0,2],[0,1,0],[0,1,1],[0,1,2],[0,2,0],[0,2,1],[0,2,2],[1,0,0],[1,0,1],[1,0,2],[1,1,0],[1,1,1],[1,1,2],[1,2,0],[1,2,1],[1,2,2],[2,0,0],[2,0,1],[2,0,2],[2,1,0],[2,1,1],[2,1,2],[2,2,0],[2,2,1],[2,2,2]]
-    more_particles = particles
+def replicate_particles(particles):
+    shifts = list(itertools.product([0,1,2], repeat = MC_par['dim']))
+    more_particles = np.empty((0,MC_par['dim']))
     for delta in shifts:
         more_particles = np.append(more_particles,particles + MC_par['L_box']*np.array(delta),axis = 0)
     return more_particles
@@ -231,14 +231,14 @@ def pair_correlation_function_3D(x, y, z, S, rMax, dr):
         g[p,:] = result / numberDensity
 
     # Average g(r) for all interior particles and compute radii
-    g_average = zeros(num_increments)
-    S_average = zeros(num_increments)
+    g_average = np.zeros(num_increments)
+    S_average = np.zeros(num_increments)
     for i in range(num_increments):
         radii[i] = (edges[i] + edges[i+1]) / 2.
         rOuter = edges[i + 1]
         rInner = edges[i]
-        S_average[i] = mean(g[:, i]) / (rOuter - rInner)
-        g_average[i] = mean(g[:, i]) / (4.0 / 3.0 * pi * (rOuter**3 - rInner**3))
+        S_average[i] = np.mean(g[:, i]) / (rOuter - rInner)
+        g_average[i] = np.mean(g[:, i]) / (4.0 / 3.0 * pi * (rOuter**3 - rInner**3))
 
     return (g_average, S_average, radii, interior_indices)
     # Number of particles in shell/total number of particles/volume of shell/number density
@@ -265,8 +265,12 @@ def initialize_system(how):
         n = np.power(MC_par['N_particles'],1.0/MC_par['dim'])
         n = int(n) + 1
         n_generated = n**MC_par['dim']
-        X,Y,Z = np.mgrid[0:n,0:n,0:n]
-        more_particles = np.array([X.flatten(),Y.flatten(),Z.flatten()]).T
+        if MC_par['dim'] == 2:
+            X,Y = np.mgrid[0:n,0:n]
+            more_particles = np.array([X.flatten(),Y.flatten()]).T
+        elif MC_par['dim'] == 3:
+            X,Y,Z = np.mgrid[0:n,0:n,0:n]
+            more_particles = np.array([X.flatten(),Y.flatten(),Z.flatten()]).T
         n_excess = n_generated - MC_par['N_particles']
         # Remove the particles in excess (randomly)
         to_remove = np.random.permutation(n_generated)[:n_excess]
@@ -383,11 +387,16 @@ def run_montecarlo(v,iteration , n_run, dr_coeff = 0.58):
 def calc_and_plot_g_r(particles,n,iteration, save_plot = False):
     
     #Replicate the system that I considered periodic
-    more_particles = replicate_3D(particles)
-    [xp,yp,zp] = np.transpose(more_particles)
+    more_particles = replicate_particles(particles)
+    
+    if MC_par['dim'] == 3:
+        [xp,yp,zp] = np.transpose(more_particles)
+        # Calculate pair correlation function
+        g_meas,S_meas,r_meas_Sg,_ = pair_correlation_function_3D(xp,yp,zp,MC_par['L_box']*MC_par['dim'],9.75,0.5)
         
-    # Calculate pair correlation function
-    g_meas,S_meas,r_meas_Sg,_ = pair_correlation_function_3D(xp,yp,zp,MC_par['L_box']*3.,9.75,0.5)
+    elif MC_par['dim'] == 2:
+        [xp,yp] = np.transpose(more_particles)
+        g_meas,S_meas,r_meas_Sg,_ = pair_correlation_function_2D(xp,yp,MC_par['L_box']*MC_par['dim'],9.75,0.5)
 
     if save_plot:
         plt.figure(figsize = (7,4))
@@ -416,14 +425,19 @@ def plot_convergence(Energies,coeffs,iteration):
 
     return
     
-    
+#%%    
 def plot_conf(particles,iteration):
+
     fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    ax.scatter(particles[:,0],particles[:,1],particles[:,2])
+    if MC_par['dim'] == 3:
+        ax = fig.add_subplot(111, projection='3d')
+        ax.scatter(particles[:,0],particles[:,1],particles[:,2])
+        ax.set_zlabel('z')
+    elif MC_par['dim'] == 2:
+        ax = fig.add_subplot(111)
+        ax.scatter(particles[:,0],particles[:,1])        
     ax.set_xlabel('x')
     ax.set_ylabel('y')
-    ax.set_zlabel('z')
     plt.figtext(0.99, 0.99, git_v, fontsize = 8, ha = 'right', va = 'top')
     plt.savefig(out_root + 'iters_output/final_conf_%03d.png' % (iteration), dpi = 600)
     plt.close('all')
@@ -527,11 +541,11 @@ if __name__ == '__main__':
 #    Stheory.r,Stheory.v = get_g(root_dir + 'g_paper.txt')
 #    Stheory.v *= 4 * np.pi * Stheory.r**2
     MC_par = {}    #A dictionary for all MC parameters
-    MC_par['N_mcs'] = int(1e+6)
+    MC_par['N_mcs'] = int(5e+5)
     MC_par['dr_c'] = 0.58
     MC_par['L_box'] = 20
     MC_par['N_particles'] = 50
-    MC_par['dim'] = 3    
+    MC_par['dim'] = 2  
     # Monte Carlo Step at which I have convergence
     MC_par['N_conv'] = 50000
     # MC steps to wait between saving observable
@@ -541,7 +555,7 @@ if __name__ == '__main__':
     
     PR_par = {}
     # Number of iterations of Potential retrieval alghoritm
-    PR_par['N_iter'] = 60
+    PR_par['N_iter'] = 5
     PR_par['damping'] = 2.0
 
     
