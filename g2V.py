@@ -532,19 +532,16 @@ if __name__ == '__main__':
     git_v = git_v.strip().decode('UTF-8')
     
 
-
-    g_th_r,g_th,_ = np.loadtxt(root_dir + 'gtest.txt', dtype = 'float', unpack = 'true')
-    S_th = g_th * 4 * np.pi * g_th_r**2
 #    gtheory = par()
 #    gtheory.r,gtheory.v = get_g(root_dir + 'g_paper.txt')
 #    Stheory = par()
 #    Stheory.r,Stheory.v = get_g(root_dir + 'g_paper.txt')
 #    Stheory.v *= 4 * np.pi * Stheory.r**2
     MC_par = {}    #A dictionary for all MC parameters
-    MC_par['N_mcs'] = int(5e+5)
+    MC_par['N_mcs'] = int(1e+6)
     MC_par['dr_c'] = 0.58
     MC_par['L_box'] = 20
-    MC_par['N_particles'] = 50
+    MC_par['N_particles'] = 14
     MC_par['dim'] = 2  
     # Monte Carlo Step at which I have convergence
     MC_par['N_conv'] = 50000
@@ -555,15 +552,22 @@ if __name__ == '__main__':
     
     PR_par = {}
     # Number of iterations of Potential retrieval alghoritm
-    PR_par['N_iter'] = 5
+    PR_par['N_iter'] = 13
     PR_par['damping'] = 2.0
 
     
-    out_root = root_dir + '%.1EMCS_ITER%03d/' % (MC_par['N_mcs'],PR_par['N_iter'])
+    out_root = root_dir + '%dD_%.1EMCS_ITER%03d/' % (MC_par['dim'],MC_par['N_mcs'],PR_par['N_iter'])
     check_folders_existence(out_root)
 
     init_conf_file()
 
+
+    # Get the g(r)
+    g_th_r,g_th,_ = np.loadtxt(root_dir + 'gtest_%dD.txt' % MC_par['dim'], dtype = 'float', unpack = 'true')
+    if MC_par['dim'] == 2:
+        S_th = g_th * 2 * np.pi * g_th_r
+    elif MC_par['dim'] == 3:
+        S_th = g_th * 4 * np.pi * g_th_r**2
     
     # Define a potential
 #    v_r,v_trial = get_g(root_dir + 'vtest.txt')
