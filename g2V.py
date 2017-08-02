@@ -493,7 +493,7 @@ def calc_dist_average(g_list, r, name, iteration):
     if name == 'g':
         plt.plot(g_th_r,g_th,label = 'expected', zorder = 0)
     elif name == 'S':
-        plt.plot(g_th_r, g_th * 4 * np.pi * g_th_r**2,label = 'expected', zorder = 0)
+        plt.plot(g_th_r, S_th, label = 'expected', zorder = 0)
     plt.errorbar(r,g_av,yerr = g_std, marker = 'o', markersize = 3, linestyle = 'None', label = 'measured', zorder = 1)
     plt.xlabel(r'$r$')
     plt.ylabel(r'$%s(r)$' % name)
@@ -538,7 +538,7 @@ if __name__ == '__main__':
 #    Stheory.r,Stheory.v = get_g(root_dir + 'g_paper.txt')
 #    Stheory.v *= 4 * np.pi * Stheory.r**2
     MC_par = {}    #A dictionary for all MC parameters
-    MC_par['N_mcs'] = int(1e+6)
+    MC_par['N_mcs'] = int(5e+5)
     MC_par['dr_c'] = 0.58
     MC_par['L_box'] = 20
     MC_par['N_particles'] = 14
@@ -552,8 +552,8 @@ if __name__ == '__main__':
     
     PR_par = {}
     # Number of iterations of Potential retrieval alghoritm
-    PR_par['N_iter'] = 13
-    PR_par['damping'] = 2.0
+    PR_par['N_iter'] = 50
+    PR_par['damping'] = 0.5
 
     
     out_root = root_dir + '%dD_%.1EMCS_ITER%03d/' % (MC_par['dim'],MC_par['N_mcs'],PR_par['N_iter'])
@@ -616,7 +616,7 @@ if __name__ == '__main__':
         
         delta_S = S_av - S_th
                 
-        for nskip in range(1,5):
+        for nskip in range(1,8):
             try:
                 delta_v = np.linalg.solve(S_cov[nskip:,nskip:],delta_S[nskip:]) * PR_par['damping']
                 break
