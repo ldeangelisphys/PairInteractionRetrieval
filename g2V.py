@@ -10,6 +10,7 @@ import subprocess
 import os
 import sys
 import itertools
+import copy
 
 
 class par:
@@ -255,6 +256,7 @@ def get_g(file_name):
 def init_V(g):
     """Initialize the potential with the effective potential function approximation"""
     return -np.log(g)
+
 #%%
 def initialize_system(how):
     """Initialize an array of positions of N particles in a box of size L"""
@@ -320,14 +322,25 @@ def MC_step(particles,chosen_one,dr,R_cut,v):
     #%%Calculate the difference in energy
     other_particles = np.delete(particles,chosen_one,0)
     old_particle = particles[chosen_one]
-    new_particle = (old_particle + dr) % MC_par['L_box']
+    new_particle = copy.copy(old_particle)  # otherwise I move it anyway
+    new_particle[:MC_par['dim']] = (old_particle[:MC_par['dim']] + dr) % MC_par['L_box']
     #%% Apply periodic Boundary conditions and exclude particles outside R_cut
     # Particles at a distance > R_cut don't contribute to the energy
-    old_distances = calc_distances(other_particles,old_particle,R_cut)   
-    new_distances = calc_distances(other_particles,new_particle,R_cut)
-    old_histo,bins  = np.histogram(old_distances, bins = v_bin)
-    new_histo,bins  = np.histogram(new_distances, bins = v_bin)
-    dE = np.sum((new_histo-old_histo)*v)
+    dE = 0
+    if(MC_par['charge']):
+        for charge_prod in ['same','opp']:
+            sel_other_particles = other_particles[other_particles[:,-1] * old_particle[-1] == term_dict[charge_prod]]
+            old_distances = calc_distances(sel_other_particles,old_particle,R_cut)   
+            new_distances = calc_distances(sel_other_particles,new_particle,R_cut)
+            old_histo,bins  = np.histogram(old_distances, bins = v_bin)
+            new_histo,bins  = np.histogram(new_distances, bins = v_bin)
+            dE += np.sum((new_histo-old_histo)*v[charge_prod])
+    else:
+        old_distances = calc_distances(other_particles,old_particle,R_cut)   
+        new_distances = calc_distances(other_particles,new_particle,R_cut)
+        old_histo,bins  = np.histogram(old_distances, bins = v_bin)
+        new_histo,bins  = np.histogram(new_distances, bins = v_bin)
+        dE += np.sum((new_histo-old_histo)*v['unsigned'])
     #%%dE = np.sum(potential(new_distances)) - np.sum(potential(old_distances))
     #Accept or decline the movement
     acc_prob = np.min([1,np.exp(-dE)])
@@ -582,7 +595,9 @@ if __name__ == '__main__':
     # MC steps to wait between saving observable
     MC_par['N_corr'] = 2500
     # Initialization of the particles in the box
-    MC_par['init_conf'] = 'noisy_array'
+    MC_par['init_conf'] = 'noisy_charged_array'
+    MC_par['charge'] = True
+    term_dict = {'same':1,'opp':-1}
     
     PR_par = {}
     # Number of iterations of Potential retrieval alghoritm
@@ -612,19 +627,20 @@ if __name__ == '__main__':
     # Define a potential
 #    v_r,v_trial = get_g(root_dir + 'vtest.txt')
     v_r = g_th_r
+    v_bin = np.append(0,np.append(0.5*(v_r[1:]+v_r[:-1]),2*MC_par['L_box']))
+    v_trial = {}
     g_th_same[g_th_same <=0] = 1e-10 # to account for the infinity at the beginning
-    v_trial_same = - np.log(g_th_same) 
-    v_trial_opp = - np.log(g_th_opp)   # to account for the infinity at the beginning
+    v_trial['same'] = - np.log(g_th_same) 
+    v_trial['opp'] = - np.log(g_th_opp)   # to account for the infinity at the beginning
 #    v_r,v_trial = straighten_pot(v_r,v_trial)
 #    v_trial = np.append(v_trial[:100],v_trial[100:]/v_r[100:]) 
-#    v_bin = np.append(0,np.append(0.5*(v_r[1:]+v_r[:-1]),2*MC_par['L_box']))
-    plot_pot(v_r,{'Same':v_trial_same,'Opp':v_trial_opp})
+    plot_pot(v_r,v_trial)
 
 
     # If I want to try different dr coefficients
     coeffs = [MC_par['dr_c']]
     v_list = []
-    v_list.append([v_trial_same,v_trial_opp])
+    v_list.append([v_trial])
     
 #%%    
     for k in range(PR_par['N_iter']):
