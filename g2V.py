@@ -571,7 +571,7 @@ if __name__ == '__main__':
     # Number of iterations of Potential retrieval alghoritm
     PR_par['N_iter'] = 1
     PR_par['damping'] = 0.5
-    PR_par['g_name'] = 'berrydennis'
+    PR_par['g_name'] = 'BD_sameopp'
 
 
     
@@ -582,27 +582,31 @@ if __name__ == '__main__':
 
 
     # Get the g(r)
-    g_th_r,g_th,_ = np.loadtxt(root_dir + 'g_%s.txt' % PR_par['g_name'], dtype = 'float', unpack = 'true')
+    g_th_r,g_th_same,g_th_opp = np.loadtxt(root_dir + 'g_%s.txt' % PR_par['g_name'], dtype = 'float', unpack = 'true')
     g_dr = g_th_r[1] - g_th_r[0]
     g_r_max = g_th_r[-1]
     if MC_par['dim'] == 2:
-        S_th = g_th * 2 * np.pi * g_th_r
+        S_th_same = g_th_same * 2 * np.pi * g_th_r
+        S_th_opp = g_th_opp * 2 * np.pi * g_th_r
     elif MC_par['dim'] == 3:
-        S_th = g_th * 4 * np.pi * g_th_r**2
+        S_th_same = g_th_same * 4 * np.pi * g_th_r**2
+        S_th_opp = g_th_opp * 4 * np.pi * g_th_r**2
     
     # Define a potential
 #    v_r,v_trial = get_g(root_dir + 'vtest.txt')
-    v_r,v_trial = g_th_r, - np.log(g_th + (g_th == 0) * 1e-50) # to account for the infinity at the beginning
+    v_r = g_th_r
+    v_trial_same = - np.log(g_th_same + (g_th_same == 0) * 1e-50)    # to account for the infinity at the beginning
+    v_trial_opp = - np.log(g_th_opp + (g_th_opp == 0) * 1e-50)       # to account for the infinity at the beginning
 #    v_r,v_trial = straighten_pot(v_r,v_trial)
-    v_trial = np.append(v_trial[:100],v_trial[100:]/v_r[100:]) 
-    v_bin = np.append(0,np.append(0.5*(v_r[1:]+v_r[:-1]),2*MC_par['L_box']))
+#    v_trial = np.append(v_trial[:100],v_trial[100:]/v_r[100:]) 
+#    v_bin = np.append(0,np.append(0.5*(v_r[1:]+v_r[:-1]),2*MC_par['L_box']))
     
 
 
     # If I want to try different dr coefficients
     coeffs = [MC_par['dr_c']]
     v_list = []
-    v_list.append(v_trial)
+    v_list.append([v_trial_same,v_trial_opp])
     
 #%%    
     for k in range(PR_par['N_iter']):
