@@ -171,9 +171,12 @@ def pair_correlation_function_2D(x, y, S, rMax, dr, kind = 'unsigned'):
     
 def replicate_particles(particles):
     shifts = list(itertools.product([0,1,2], repeat = MC_par['dim']))
-    more_particles = np.empty((0,MC_par['dim']))
-    for delta in shifts:
-        more_particles = np.append(more_particles,particles + MC_par['L_box']*np.array(delta),axis = 0)
+    more_particles = np.empty((0,MC_par['dim'] + 1 * MC_par['charge']))
+    for s in shifts:
+        delta = MC_par['L_box']*np.array(s)
+        if MC_par['charge']:
+            delta = np.append(delta,0)
+        more_particles = np.append(more_particles,particles + delta,axis = 0)
     return more_particles
 
 
@@ -412,9 +415,12 @@ def calc_and_plot_g_r(particles,n,iteration, save_plot = False):
         g_meas,S_meas,r_meas_Sg,_ = pair_correlation_function_3D(xp,yp,zp,MC_par['L_box']*3.0,9.75,0.5)
         
     elif MC_par['dim'] == 2:
-        [xp,yp] = np.transpose(more_particles)
-        g_meas,S_meas,r_meas_Sg,_ = pair_correlation_function_2D(xp,yp,MC_par['L_box']*3.0,g_r_max,g_dr)    # 3.0 due to periodic replication
-
+        if MC_par['charge']:
+            [xp,yp,sp] = np.transpose(more_particles)
+            g_meas,S_meas,r_meas_Sg,_ = pair_correlation_function_2D(xp,yp,MC_par['L_box']*3.0,g_r_max,g_dr)    # 3.0 due to periodic replication
+        else:
+            [xp,yp] = np.transpose(more_particles)
+            g_meas,S_meas,r_meas_Sg,_ = pair_correlation_function_2D(xp,yp,MC_par['L_box']*3.0,g_r_max,g_dr)    # 3.0 due to periodic replication
     if save_plot:
         plt.figure(figsize = (7,4))
         plt.plot(r_meas_Sg,g_meas)
@@ -585,13 +591,13 @@ if __name__ == '__main__':
 #    Stheory.r,Stheory.v = get_g(root_dir + 'g_paper.txt')
 #    Stheory.v *= 4 * np.pi * Stheory.r**2
     MC_par = {}    #A dictionary for all MC parameters
-    MC_par['N_mcs'] = int(1e+6)
+    MC_par['N_mcs'] = int(1e+5)
     MC_par['L_box'] = 20
     MC_par['N_particles'] = int(MC_par['L_box']**2 * np.pi) # wavelength = 1, density of berrydennis
     MC_par['dim'] = 2  
     MC_par['dr_c'] = 0.2 * MC_par['L_box'] / np.power(MC_par['N_particles'],1.0/MC_par['dim'])
     # Monte Carlo Step at which I have convergence
-    MC_par['N_conv'] = 1e+5
+    MC_par['N_conv'] = 1e+4
     # MC steps to wait between saving observable
     MC_par['N_corr'] = 2500
     # Initialization of the particles in the box
@@ -640,7 +646,7 @@ if __name__ == '__main__':
     # If I want to try different dr coefficients
     coeffs = [MC_par['dr_c']]
     v_list = []
-    v_list.append([v_trial])
+    v_list.append(v_trial)
     
 #%%    
     for k in range(PR_par['N_iter']):
