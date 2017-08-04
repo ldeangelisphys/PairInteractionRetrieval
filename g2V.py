@@ -261,7 +261,7 @@ def initialize_system(how):
     
     if how == 'random':
         particles = np.random.rand(MC_par['N_particles'],MC_par['dim'])*MC_par['L_box']         
-    elif how == 'array' or MC_par['init_conf']:
+    elif 'array' in how:
         n = np.power(MC_par['N_particles'],1.0/MC_par['dim'])
         n = int(n) + 1
         n_generated = n**MC_par['dim']
@@ -278,10 +278,14 @@ def initialize_system(how):
         # normalize
         particles = particles * MC_par['L_box'] / n
         
-        if how == MC_par['init_conf']:
+        if 'noisy' in how:
             noise = (np.random.rand(MC_par['N_particles'],MC_par['dim']) - 0.5) * 0.5 * MC_par['L_box']/n
             particles = particles + noise
             
+        if 'charged' in how:
+            particles = np.append(particles, np.ones((MC_par['N_particles'],1)), axis = 1) # add a column for charge
+            # and flip half charges
+            particles[::2,2] *= -1
                 
     return particles
 #%%
@@ -539,7 +543,20 @@ def init_conf_file():
         config.write(configfile)
 #%%    
     return
+#%%
+def plot_pot(pot_r,potentials):
     
+    plt.figure
+    for this_pot in potentials:
+        plt.plot(pot_r,potentials[this_pot], label = this_pot)
+    plt.ylim([-1,3])
+    plt.legend()
+    plt.xlabel(r'$r$')
+    plt.ylabel(r'$V(r)$')
+    plt.savefig(out_root + 'starting_pot.png', dpi = 300)
+    plt.close('all')
+    
+    return
     
     #%%
 if __name__ == '__main__':
@@ -565,7 +582,7 @@ if __name__ == '__main__':
     # MC steps to wait between saving observable
     MC_par['N_corr'] = 2500
     # Initialization of the particles in the box
-    MC_par['init_conf'] = 'array_w_noise'
+    MC_par['init_conf'] = 'noisy_array'
     
     PR_par = {}
     # Number of iterations of Potential retrieval alghoritm
@@ -595,12 +612,13 @@ if __name__ == '__main__':
     # Define a potential
 #    v_r,v_trial = get_g(root_dir + 'vtest.txt')
     v_r = g_th_r
-    v_trial_same = - np.log(g_th_same + (g_th_same == 0) * 1e-50)    # to account for the infinity at the beginning
-    v_trial_opp = - np.log(g_th_opp + (g_th_opp == 0) * 1e-50)       # to account for the infinity at the beginning
+    g_th_same[g_th_same <=0] = 1e-10 # to account for the infinity at the beginning
+    v_trial_same = - np.log(g_th_same) 
+    v_trial_opp = - np.log(g_th_opp)   # to account for the infinity at the beginning
 #    v_r,v_trial = straighten_pot(v_r,v_trial)
 #    v_trial = np.append(v_trial[:100],v_trial[100:]/v_r[100:]) 
 #    v_bin = np.append(0,np.append(0.5*(v_r[1:]+v_r[:-1]),2*MC_par['L_box']))
-    
+    plot_pot(v_r,{'Same':v_trial_same,'Opp':v_trial_opp})
 
 
     # If I want to try different dr coefficients
