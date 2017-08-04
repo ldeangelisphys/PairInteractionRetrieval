@@ -1,7 +1,7 @@
 import configparser
 import numpy as np
 import matplotlib.pyplot as plt
-#from scipy.interpolate import interp1d
+from scipy.interpolate import interp1d
 import time
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import cm
@@ -316,7 +316,7 @@ def MC_step(particles,chosen_one,dr,R_cut,v):
     #%%Calculate the difference in energy
     other_particles = np.delete(particles,chosen_one,0)
     old_particle = particles[chosen_one]
-    new_particle = (old_particle + dr)%MC_par['L_box']
+    new_particle = (old_particle + dr) % MC_par['L_box']
     #%% Apply periodic Boundary conditions and exclude particles outside R_cut
     # Particles at a distance > R_cut don't contribute to the energy
     old_distances = calc_distances(other_particles,old_particle,R_cut)   
@@ -342,7 +342,7 @@ def run_montecarlo(v,iteration , n_run, dr_coeff = 0.58):
     """ Test the MC simulation using the example in hte paper byLyubartsev and Laaksonen"""
     
     start = time.time()
-
+#%%
     R_cut = v_r[-1]  # TODO
     #v_f = interp1d(r,v)
 
@@ -353,12 +353,12 @@ def run_montecarlo(v,iteration , n_run, dr_coeff = 0.58):
     particles = initialize_system(MC_par['init_conf'])
     E = np.zeros(MC_par['N_mcs']+2) #TODO initial energy
     MC_move = 0
-
+#%%
     for n in range(MC_par['N_mcs']+1):
-        
+        #%%
         chosen_one = np.random.randint(MC_par['N_particles'])
-        dr = dr_coeff*np.random.rand(MC_par['dim'])
-        ####
+        dr = dr_coeff * ( np.random.rand(MC_par['dim']) - 0.5 )
+        #%%###
         dE,this_move = MC_step(particles,chosen_one,dr,R_cut,v)
         ####
         E[n+1] = E[n] + dE
@@ -396,7 +396,7 @@ def calc_and_plot_g_r(particles,n,iteration, save_plot = False):
         
     elif MC_par['dim'] == 2:
         [xp,yp] = np.transpose(more_particles)
-        g_meas,S_meas,r_meas_Sg,_ = pair_correlation_function_2D(xp,yp,MC_par['L_box']*3.0,r_max,dr)    # 3.0 due to periodic replication
+        g_meas,S_meas,r_meas_Sg,_ = pair_correlation_function_2D(xp,yp,MC_par['L_box']*3.0,g_r_max,g_dr)    # 3.0 due to periodic replication
 
     if save_plot:
         plt.figure(figsize = (7,4))
@@ -505,6 +505,23 @@ def calc_dist_average(g_list, r, name, iteration):
     return g_av,g_std
     
     #%%
+
+def straighten_pot(fr,f):
+
+    minima = m = np.r_[False,f[1:] < f[:-1]] & np.r_[f[:-1] < f[1:], False]
+
+    first_minimum = np.where(m)[0][0]
+    r_temp = np.append(fr[:first_minimum],fr[minima])
+    r_temp = np.append(r_temp,20)
+    f_temp = np.append(f[:first_minimum],f[minima])
+    f_temp = np.append(f_temp,0)
+    f_func = interp1d(r_temp,f_temp, kind = 'linear')
+    
+    new_r = np.arange(0.005,20,0.01)
+    new_f = f_func(new_r)
+    
+    return new_r,new_f
+    #%%
             
     
 def init_conf_file():
@@ -539,10 +556,10 @@ if __name__ == '__main__':
 #    Stheory.v *= 4 * np.pi * Stheory.r**2
     MC_par = {}    #A dictionary for all MC parameters
     MC_par['N_mcs'] = int(1e+6)
-    MC_par['L_box'] = 10
+    MC_par['L_box'] = 20
     MC_par['N_particles'] = int(MC_par['L_box']**2 * np.pi) # wavelength = 1, density of berrydennis
     MC_par['dim'] = 2  
-    MC_par['dr_c'] = 0.1 * MC_par['L_box'] / np.power(MC_par['N_particles'],1.0/MC_par['dim'])
+    MC_par['dr_c'] = 0.2 * MC_par['L_box'] / np.power(MC_par['N_particles'],1.0/MC_par['dim'])
     # Monte Carlo Step at which I have convergence
     MC_par['N_conv'] = 1e+5
     # MC steps to wait between saving observable
@@ -566,8 +583,8 @@ if __name__ == '__main__':
 
     # Get the g(r)
     g_th_r,g_th,_ = np.loadtxt(root_dir + 'g_%s.txt' % PR_par['g_name'], dtype = 'float', unpack = 'true')
-    dr = g_th_r[1] - g_th_r[0]
-    r_max = g_th_r[-1]
+    g_dr = g_th_r[1] - g_th_r[0]
+    g_r_max = g_th_r[-1]
     if MC_par['dim'] == 2:
         S_th = g_th * 2 * np.pi * g_th_r
     elif MC_par['dim'] == 3:
@@ -576,6 +593,8 @@ if __name__ == '__main__':
     # Define a potential
 #    v_r,v_trial = get_g(root_dir + 'vtest.txt')
     v_r,v_trial = g_th_r, - np.log(g_th + (g_th == 0) * 1e-50) # to account for the infinity at the beginning
+#    v_r,v_trial = straighten_pot(v_r,v_trial)
+    v_trial = np.append(v_trial[:100],v_trial[100:]/v_r[100:]) 
     v_bin = np.append(0,np.append(0.5*(v_r[1:]+v_r[:-1]),2*MC_par['L_box']))
     
 
