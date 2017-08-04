@@ -45,7 +45,7 @@ def print_progress(done,total):
     
     return
 
-def pair_correlation_function_2D(x, y, S, rMax, dr, kind = 'unsigned'): 
+def pair_correlation_function_2D(x, y, sign, S, rMax, dr, kind = 'unsigned'): 
     """
     Compute the two-dimensional pair correlation function, also known 
     as the radial distribution function, for a set of circular particles 
@@ -135,10 +135,10 @@ def pair_correlation_function_2D(x, y, S, rMax, dr, kind = 'unsigned'):
 
             if(kind == 'signed'):
                 g[p, :] = (pos_result-neg_result)/numberDensity
-            elif(kind == 'same_sign'):
+            elif(kind == 'same'):
                 numberDensity = len(d_pos) / np.double(S**2)
                 g[p, :] = pos_result/numberDensity
-            elif(kind == 'opp_sign'):
+            elif(kind == 'opp'):
                 numberDensity = len(d_neg) / np.double(S**2)
                 g[p, :] = neg_result/numberDensity
             elif((kind == 'signed_x')|(kind == 'signed_y')):
@@ -366,8 +366,8 @@ def run_montecarlo(v,iteration , n_run, dr_coeff = 0.58):
     R_cut = v_r[-1]  # TODO
     #v_f = interp1d(r,v)
 
-    g_list = [] 
-    S_list = []
+    g_lists = {'same':[],'opp':[]} 
+    S_lists = {'same':[],'opp':[]}
     
     # Initialize the system at a random distribution
     particles = initialize_system(MC_par['init_conf'])
@@ -389,10 +389,10 @@ def run_montecarlo(v,iteration , n_run, dr_coeff = 0.58):
             print_progress(n+1,MC_par['N_mcs'])    
             ## After convergence calc and save g
             if(n > MC_par['N_conv']):
-                g_meas, S_meas, r_meas_Sg = calc_and_plot_g_r(particles,n,iteration)
-                g_list.append(g_meas)
-                S_list.append(S_meas)
-        
+                for kind in ['same','opp']:
+                    g_meas, S_meas, r_meas_Sg = calc_and_plot_g_r(particles,n,iteration,kind = kind)
+                    g_lists[kind].append(g_meas)
+                    S_lists[kind].append(S_meas)
             
     elapsed = time.time() - start
     print(' Done in %d s' % elapsed)
@@ -402,9 +402,9 @@ def run_montecarlo(v,iteration , n_run, dr_coeff = 0.58):
     plot_conf(particles,iteration)
 
         
-    return particles,E,g_list,S_list,r_meas_Sg
+    return particles,E,g_lists,S_lists,r_meas_Sg
     
-def calc_and_plot_g_r(particles,n,iteration, save_plot = False):
+def calc_and_plot_g_r(particles,n,iteration, kind = 'unsigned', save_plot = True):
     
     #Replicate the system that I considered periodic
     more_particles = replicate_particles(particles)
@@ -413,19 +413,19 @@ def calc_and_plot_g_r(particles,n,iteration, save_plot = False):
         if MC_par['charge']:
             [xp,yp,zp,sp] = np.transpose(more_particles)
             # Calculate pair correlation function
-            g_meas,S_meas,r_meas_Sg,_ = pair_correlation_function_3D(xp,yp,zp,MC_par['L_box']*3.0,9.75,0.5)
+            g_meas,S_meas,r_meas_Sg,_ = pair_correlation_function_3D(xp,yp,zp,MC_par['L_box']*3.0,9.75,0.5,kind)
         else:
             [xp,yp,zp] = np.transpose(more_particles)
             # Calculate pair correlation function
-            g_meas,S_meas,r_meas_Sg,_ = pair_correlation_function_3D(xp,yp,zp,MC_par['L_box']*3.0,9.75,0.5)
+            g_meas,S_meas,r_meas_Sg,_ = pair_correlation_function_3D(xp,yp,zp,MC_par['L_box']*3.0,9.75,0.5,kind)
         
     elif MC_par['dim'] == 2:
         if MC_par['charge']:
             [xp,yp,sp] = np.transpose(more_particles)
-            g_meas,S_meas,r_meas_Sg,_ = pair_correlation_function_2D(xp,yp,MC_par['L_box']*3.0,g_r_max,g_dr)    # 3.0 due to periodic replication
+            g_meas,S_meas,r_meas_Sg,_ = pair_correlation_function_2D(xp,yp,sp,MC_par['L_box']*3.0,g_r_max,g_dr,kind)    # 3.0 due to periodic replication
         else:
             [xp,yp] = np.transpose(more_particles)
-            g_meas,S_meas,r_meas_Sg,_ = pair_correlation_function_2D(xp,yp,MC_par['L_box']*3.0,g_r_max,g_dr)    # 3.0 due to periodic replication
+            g_meas,S_meas,r_meas_Sg,_ = pair_correlation_function_2D(xp,yp,MC_par['L_box']*3.0,g_r_max,g_dr,kind)    # 3.0 due to periodic replication
     if save_plot:
         plt.figure(figsize = (7,4))
         plt.plot(r_meas_Sg,g_meas)
@@ -514,7 +514,7 @@ def check_correlation_at_convergence(E_conv, N_display = 20000):
     return
     #%%
 def calc_dist_average(g_list, r, name, iteration):
-    
+        
     N_av = len(g_list)
     g_array = np.array(g_list)
     g_av = np.average(g_array, axis = 0)
@@ -523,13 +523,14 @@ def calc_dist_average(g_list, r, name, iteration):
     
     plt.figure(figsize = (6,4.5))
     #Plot theory
-    if name == 'g':
-        plt.plot(g_th_r,g_th,label = 'expected', zorder = 0)
-    elif name == 'S':
-        plt.plot(g_th_r, S_th, label = 'expected', zorder = 0)
+    what,kind = name.split('_')
+    if what == 'g':
+        plt.plot(g_th_r,g_th[kind],label = 'expected', zorder = 0)
+    elif what == 'S':
+        plt.plot(g_th_r, S_th[kind], label = 'expected', zorder = 0)
     plt.errorbar(r,g_av,yerr = g_std, marker = 'o', markersize = 3, linestyle = 'None', label = 'measured', zorder = 1)
     plt.xlabel(r'$r$')
-    plt.ylabel(r'$%s(r)$' % name)
+    plt.ylabel(r'$%s_{%s}(r)$' % (what,kind))
     plt.figtext(0.99, 0.99, git_v, fontsize = 8, ha = 'right', va = 'top')
     plt.legend()
     plt.savefig(out_root + 'iters_output/%s_av_%03d.png' % (name,iteration), dpi = 300)
@@ -555,7 +556,24 @@ def straighten_pot(fr,f):
     
     return new_r,new_f
     #%%
+def save_and_plot_new_potential(new_v, kind, vlist):
+    
+    np.savetxt(out_root + 'iters_output/pot_' + kind + '%03d.txt' % (k+1),np.transpose([v_r,new_v[kind]]), fmt = '%.04f', delimiter = '\t', header = 'r\t\tV(r)')
             
+            
+    # And plot it with the others (max 10 others)
+    to_skip = int(len(v_list)/10) + 1
+    plt.figure(figsize = (6,4.5))
+    for i,vv in enumerate(v_list[::to_skip]):
+        plt.plot(v_r[1:],vv[kind][1:], label = 'iteration #%03d' % (i*to_skip))
+        plt.xlabel(r'$r$')
+        plt.ylabel(r'$V_{%s}(r)$' % kind)
+    plt.legend()    
+    plt.savefig(out_root + 'iters_output/pot_%s_000-%03d.png' % (kind,k+1),dpi = 300)
+    plt.close('all')
+    
+    return
+#%%            
     
 def init_conf_file():
     #%%
@@ -601,15 +619,15 @@ if __name__ == '__main__':
 #    Stheory.r,Stheory.v = get_g(root_dir + 'g_paper.txt')
 #    Stheory.v *= 4 * np.pi * Stheory.r**2
     MC_par = {}    #A dictionary for all MC parameters
-    MC_par['N_mcs'] = int(5e+5)
+    MC_par['N_mcs'] = int(1e+4)
     MC_par['L_box'] = 20
     MC_par['N_particles'] = int(MC_par['L_box']**2 * np.pi) # wavelength = 1, density of berrydennis
     MC_par['dim'] = 2  
     MC_par['dr_c'] = 0.2 * MC_par['L_box'] / np.power(MC_par['N_particles'],1.0/MC_par['dim'])
     # Monte Carlo Step at which I have convergence
-    MC_par['N_conv'] = 5e+5
+    MC_par['N_conv'] = 1e+3
     # MC steps to wait between saving observable
-    MC_par['N_corr'] = 10000
+    MC_par['N_corr'] = 1000
     # Initialization of the particles in the box
     MC_par['init_conf'] = 'noisy_charged_array'
     MC_par['charge'] = True
@@ -619,7 +637,7 @@ if __name__ == '__main__':
     # Number of iterations of Potential retrieval alghoritm
     PR_par['N_iter'] = 1
     PR_par['damping'] = 0.5
-    PR_par['g_name'] = 'BD_sameopp'
+    PR_par['g_name'] = 'BD_sameopp02'
 
 
     
@@ -630,27 +648,28 @@ if __name__ == '__main__':
 
 
     # Get the g(r)
-    g_th_r,g_th_same,g_th_opp = np.loadtxt(root_dir + 'g_%s.txt' % PR_par['g_name'], dtype = 'float', unpack = 'true')
-    g_th = (g_th_same + g_th_opp) * 0.5
+    g_th, S_th = {}, {}
+    g_th_r,g_th['same'],g_th['opp'] = np.loadtxt(root_dir + 'g_%s.txt' % PR_par['g_name'], dtype = 'float', unpack = 'true')
+    g_th['unsigned'] = (g_th['same'] + g_th['opp']) * 0.5
     g_dr = g_th_r[1] - g_th_r[0]
     g_r_max = g_th_r[-1]
     if MC_par['dim'] == 2:
-        S_th_same = g_th_same * 2 * np.pi * g_th_r
-        S_th_opp = g_th_opp * 2 * np.pi * g_th_r
-        S_th = g_th * 2 * np.pi * g_th_r
+        S_th['same'] = g_th['same'] * 2 * np.pi * g_th_r
+        S_th['opp'] = g_th['opp'] * 2 * np.pi * g_th_r
+        S_th['unsigned'] = g_th['unsigned'] * 2 * np.pi * g_th_r
     elif MC_par['dim'] == 3:
-        S_th_same = g_th_same * 4 * np.pi * g_th_r**2
-        S_th_opp = g_th_opp * 4 * np.pi * g_th_r**2
-        S_th = g_th * 4 * np.pi * g_th_r**2
+        S_th['same'] = g_th['same'] * 4 * np.pi * g_th_r**2
+        S_th['opp'] = g_th['opp'] * 4 * np.pi * g_th_r**2
+        S_th['unsigned'] = g_th['unsigned'] * 4 * np.pi * g_th_r**2
     
     # Define a potential
 #    v_r,v_trial = get_g(root_dir + 'vtest.txt')
     v_r = g_th_r
     v_bin = np.append(0,np.append(0.5*(v_r[1:]+v_r[:-1]),2*MC_par['L_box']))
     v_trial = {}
-    g_th_same[g_th_same <=0] = 1e-10 # to account for the infinity at the beginning
-    v_trial['same'] = - np.log(g_th_same) 
-    v_trial['opp'] = - np.log(g_th_opp)   # to account for the infinity at the beginning
+    g_th['same'][g_th['same'] <=0] = 1e-10 # to account for the infinity at the beginning
+    v_trial['same'] = - np.log(g_th['same']) 
+    v_trial['opp'] = - np.log(g_th['opp'])   # to account for the infinity at the beginning
 #    v_r,v_trial = straighten_pot(v_r,v_trial)
 #    v_trial = np.append(v_trial[:100],v_trial[100:]/v_r[100:]) 
     plot_pot(v_r,v_trial)
@@ -672,7 +691,7 @@ if __name__ == '__main__':
             
     
             #%%
-            particles,E,g_list,S_list,g_meas_r = run_montecarlo(v_list[k], k+1, i, dr_coeff = c)
+            particles,E,g_lists,S_lists,g_meas_r = run_montecarlo(v_list[k], k+1, i, dr_coeff = c)
             Energies[c] = E
             
     #%% Plot the convergence test
@@ -682,41 +701,36 @@ if __name__ == '__main__':
     #    check_correlation_at_convergence(Energies[dr_c][N_conv:])
     
     #%% Save the statistical average of g
-        gav,gstd = calc_dist_average(g_list,g_meas_r,'g',k+1)
-        Sav,Sstd = calc_dist_average(S_list,g_meas_r,'S',k+1)
+        for kind in g_lists:    
+            gav,gstd = calc_dist_average(g_lists[kind],g_meas_r,'g_' + kind,k+1)
+            Sav,Sstd = calc_dist_average(S_lists[kind],g_meas_r,'S_' + kind,k+1)
         
     #%% Define what part of the calc g can be compared to the known one
         r_min = np.where(np.abs(g_meas_r - g_th_r[0]) < 1e-4)[0][0]
         r_max = np.where(np.abs(g_meas_r - g_th_r[-1]) < 1e-4)[0][0] + 1
     #%% Perform the retrieval alghorithm
+        new_v = {}
+        for kind in ['same']:       
+            S_array = np.array([single_S[r_min:r_max] for single_S in S_lists[kind]])
+            S_av = np.average(S_array, axis = 0)
+            S_cov = np.cov(S_array,rowvar = 0)
         
-        S_array = np.array([single_S[r_min:r_max] for single_S in S_list])
-        S_av = np.average(S_array, axis = 0)
-        S_cov = np.cov(S_array,rowvar = 0)
-        
-        delta_S = S_av - S_th
+            delta_S = S_av - S_th[kind]
                 
-        for nskip in range(1,8):
-            try:
-                delta_v = np.linalg.solve(S_cov[nskip:,nskip:],delta_S[nskip:]) * PR_par['damping']
-                break
-            except:
-                continue
+            for nskip in range(1,8):
+                try:
+                    delta_v = np.linalg.solve(S_cov[nskip:,nskip:],delta_S[nskip:]) * PR_par['damping']
+                    break
+                except:
+                    continue
             
-        new_v = np.zeros(len(v_r))
-        new_v += v_list[k]
-        new_v[nskip:] += delta_v
+            new_v[kind] = copy.copy(v_list[k][kind])
+            new_v[kind][nskip:] += delta_v
+            
+            
+            # Save the new potential and plot it with the others (max 10 others)
+            save_and_plot_new_potential(new_v, kind, v_list)
+            
         v_list.append(new_v)
-            
-        # Save the new potential
-        np.savetxt(out_root + 'iters_output/pot_%03d.txt' % (k+1),np.transpose([v_r,new_v]), fmt = '%.04f', delimiter = '\t', header = 'r\t\tV(r)')
-        # And plot it with the others (max 10 others)
-        to_skip = int(len(v_list)/10) + 1
-        plt.figure(figsize = (6,4.5))
-        for i,vv in enumerate(v_list[::to_skip]):
-            plt.plot(v_r[1:],vv[1:], label = 'iteration #%03d' % (i*to_skip))
-            plt.xlabel(r'$r$')
-            plt.ylabel(r'$V(r)$')
-        plt.legend()    
-        plt.savefig(out_root + 'iters_output/pot_000-%03d.png' % (k+1),dpi = 300)
-        plt.close('all')
+        #%%            
+
