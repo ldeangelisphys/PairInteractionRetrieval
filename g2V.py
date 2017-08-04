@@ -410,9 +410,14 @@ def calc_and_plot_g_r(particles,n,iteration, save_plot = False):
     more_particles = replicate_particles(particles)
     
     if MC_par['dim'] == 3:
-        [xp,yp,zp] = np.transpose(more_particles)
-        # Calculate pair correlation function
-        g_meas,S_meas,r_meas_Sg,_ = pair_correlation_function_3D(xp,yp,zp,MC_par['L_box']*3.0,9.75,0.5)
+        if MC_par['charge']:
+            [xp,yp,zp,sp] = np.transpose(more_particles)
+            # Calculate pair correlation function
+            g_meas,S_meas,r_meas_Sg,_ = pair_correlation_function_3D(xp,yp,zp,MC_par['L_box']*3.0,9.75,0.5)
+        else:
+            [xp,yp,zp] = np.transpose(more_particles)
+            # Calculate pair correlation function
+            g_meas,S_meas,r_meas_Sg,_ = pair_correlation_function_3D(xp,yp,zp,MC_par['L_box']*3.0,9.75,0.5)
         
     elif MC_par['dim'] == 2:
         if MC_par['charge']:
@@ -452,13 +457,18 @@ def plot_convergence(Energies,coeffs,iteration):
 def plot_conf(particles,iteration):
 
     fig = plt.figure()
+    if MC_par['charge']:
+        charge = particles[:,-1]
+    else:
+        charge = np.zeros(len(particles))
+        
     if MC_par['dim'] == 3:
         ax = fig.add_subplot(111, projection='3d')
-        ax.scatter(particles[:,0],particles[:,1],particles[:,2], alpha = 0.5)
+        ax.scatter(particles[:,0],particles[:,1],particles[:,2], c = charge, alpha = 0.75)
         ax.set_zlabel('z')
     elif MC_par['dim'] == 2:
         ax = fig.add_subplot(111)
-        ax.scatter(particles[:,0],particles[:,1], alpha = 0.5)        
+        ax.scatter(particles[:,0],particles[:,1], c = charge, alpha = 0.75)        
     ax.set_xlabel('x')
     ax.set_ylabel('y')
     plt.figtext(0.99, 0.99, git_v, fontsize = 8, ha = 'right', va = 'top')
@@ -591,15 +601,15 @@ if __name__ == '__main__':
 #    Stheory.r,Stheory.v = get_g(root_dir + 'g_paper.txt')
 #    Stheory.v *= 4 * np.pi * Stheory.r**2
     MC_par = {}    #A dictionary for all MC parameters
-    MC_par['N_mcs'] = int(1e+5)
+    MC_par['N_mcs'] = int(5e+5)
     MC_par['L_box'] = 20
     MC_par['N_particles'] = int(MC_par['L_box']**2 * np.pi) # wavelength = 1, density of berrydennis
     MC_par['dim'] = 2  
     MC_par['dr_c'] = 0.2 * MC_par['L_box'] / np.power(MC_par['N_particles'],1.0/MC_par['dim'])
     # Monte Carlo Step at which I have convergence
-    MC_par['N_conv'] = 1e+4
+    MC_par['N_conv'] = 5e+5
     # MC steps to wait between saving observable
-    MC_par['N_corr'] = 2500
+    MC_par['N_corr'] = 10000
     # Initialization of the particles in the box
     MC_par['init_conf'] = 'noisy_charged_array'
     MC_par['charge'] = True
@@ -621,14 +631,17 @@ if __name__ == '__main__':
 
     # Get the g(r)
     g_th_r,g_th_same,g_th_opp = np.loadtxt(root_dir + 'g_%s.txt' % PR_par['g_name'], dtype = 'float', unpack = 'true')
+    g_th = (g_th_same + g_th_opp) * 0.5
     g_dr = g_th_r[1] - g_th_r[0]
     g_r_max = g_th_r[-1]
     if MC_par['dim'] == 2:
         S_th_same = g_th_same * 2 * np.pi * g_th_r
         S_th_opp = g_th_opp * 2 * np.pi * g_th_r
+        S_th = g_th * 2 * np.pi * g_th_r
     elif MC_par['dim'] == 3:
         S_th_same = g_th_same * 4 * np.pi * g_th_r**2
         S_th_opp = g_th_opp * 4 * np.pi * g_th_r**2
+        S_th = g_th * 4 * np.pi * g_th_r**2
     
     # Define a potential
 #    v_r,v_trial = get_g(root_dir + 'vtest.txt')
