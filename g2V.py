@@ -429,11 +429,11 @@ def calc_and_plot_g_r(particles,n,iteration, kind = 'unsigned', save_plot = True
     if save_plot:
         plt.figure(figsize = (7,4))
         plt.plot(r_meas_Sg,g_meas)
-        plt.plot(g_th_r,g_th)
+        plt.plot(g_th_r,g_th[kind])
         plt.xlabel('r')
         plt.ylabel('g(r)')
         plt.figtext(0.99, 0.99, git_v, fontsize = 8, ha = 'right', va = 'top')
-        plt.savefig(out_root + 'iters_output/all_g_%03d/mcs_%d.png' % (iteration,n), dpi = 300)
+        plt.savefig(out_root + 'iters_output/all_g_%03d/%s_%d.png' % (iteration,kind,n), dpi = 300)
         plt.close('all')
     
     return g_meas, S_meas, r_meas_Sg
