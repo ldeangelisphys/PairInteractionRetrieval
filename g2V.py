@@ -170,7 +170,7 @@ def pair_correlation_function_2D(x, y, sign, S, rMax, dr, kind = 'unsigned'):
     return (g_average, S_average, radii, interior_indices)    
     
 def replicate_particles(particles):
-    shifts = list(itertools.product([0,1,2], repeat = MC_par['dim']))
+    shifts = list(itertools.product([-1,0,1], repeat = MC_par['dim']))
     more_particles = np.empty((0,MC_par['dim'] + 1 * MC_par['charge']))
     for s in shifts:
         delta = MC_par['L_box']*np.array(s)
@@ -339,7 +339,7 @@ def MC_step(particles,chosen_one,dr,R_cut,v):
             new_distances = calc_distances(sel_other_particles[:,:MC_par['dim']],new_particle[:MC_par['dim']],R_cut)
             old_histo,bins  = np.histogram(old_distances, bins = v_bin)
             new_histo,bins  = np.histogram(new_distances, bins = v_bin)
-            dE += np.sum((new_histo-old_histo)*v[charge_prod])
+            dE += np.sum( (new_histo-old_histo) * v[charge_prod] )
             #%%
     else:
         old_distances = calc_distances(other_particles,old_particle,R_cut)   
@@ -407,28 +407,33 @@ def run_montecarlo(v,iteration , n_run, dr_coeff = 0.58):
         
     return particles,E,g_lists,S_lists,r_meas_Sg
     
-def calc_and_plot_g_r(particles,n,iteration, kind = 'unsigned', save_plot = True):
+def calc_and_plot_g_r(particles,n,iteration, kind = 'unsigned', save_plot = False):
     
-    #Replicate the system that I considered periodic
-    more_particles = replicate_particles(particles)
-    
+    #If needed replicate the system that I considered periodic
+    if PR_par['Replicate Particles']:
+        more_particles = replicate_particles(particles)
+        S_factor = 3.0
+    else:
+        more_particles = particles
+        S_factor = 1.0
+        
     if MC_par['dim'] == 3:
         if MC_par['charge']:
             [xp,yp,zp,sp] = np.transpose(more_particles)
             # Calculate pair correlation function
-            g_meas,S_meas,r_meas_Sg,_ = pair_correlation_function_3D(xp,yp,zp,MC_par['L_box']*3.0,9.75,0.5,kind)
+            g_meas,S_meas,r_meas_Sg,_ = pair_correlation_function_3D(xp,yp,zp,MC_par['L_box']*S_factor,9.75,0.5,kind)
         else:
             [xp,yp,zp] = np.transpose(more_particles)
             # Calculate pair correlation function
-            g_meas,S_meas,r_meas_Sg,_ = pair_correlation_function_3D(xp,yp,zp,MC_par['L_box']*3.0,9.75,0.5,kind)
+            g_meas,S_meas,r_meas_Sg,_ = pair_correlation_function_3D(xp,yp,zp,MC_par['L_box']*S_factor,9.75,0.5,kind)
         
     elif MC_par['dim'] == 2:
         if MC_par['charge']:
             [xp,yp,sp] = np.transpose(more_particles)
-            g_meas,S_meas,r_meas_Sg,_ = pair_correlation_function_2D(xp,yp,sp,MC_par['L_box']*3.0,g_r_max,g_dr,kind)    # 3.0 due to periodic replication
+            g_meas,S_meas,r_meas_Sg,_ = pair_correlation_function_2D(xp,yp,sp,MC_par['L_box']*S_factor,g_r_max,g_dr,kind)    # 3.0 due to periodic replication
         else:
             [xp,yp] = np.transpose(more_particles)
-            g_meas,S_meas,r_meas_Sg,_ = pair_correlation_function_2D(xp,yp,MC_par['L_box']*3.0,g_r_max,g_dr,kind)    # 3.0 due to periodic replication
+            g_meas,S_meas,r_meas_Sg,_ = pair_correlation_function_2D(xp,yp,MC_par['L_box']*S_factor,g_r_max,g_dr,kind)    # 3.0 due to periodic replication
     if save_plot:
         plt.figure(figsize = (7,4))
         plt.plot(r_meas_Sg,g_meas)
@@ -624,13 +629,13 @@ if __name__ == '__main__':
 #    Stheory.r,Stheory.v = get_g(root_dir + 'g_paper.txt')
 #    Stheory.v *= 4 * np.pi * Stheory.r**2
     MC_par = {}    #A dictionary for all MC parameters
-    MC_par['N_mcs'] = int(7e+5)
-    MC_par['L_box'] = 5
+    MC_par['N_mcs'] = int(8.0e+5)
+    MC_par['L_box'] = 6
     MC_par['N_particles'] = int(MC_par['L_box']**2 * np.pi) # wavelength = 1, density of berrydennis
     MC_par['dim'] = 2  
     MC_par['dr_c'] = MC_par['L_box'] / np.power(MC_par['N_particles'],1.0/MC_par['dim'])
     # Monte Carlo Step at which I have convergence
-    MC_par['N_conv'] = 1e+5
+    MC_par['N_conv'] = 3e+5
     # MC steps to wait between saving observable
     MC_par['N_corr'] = 5e+3
     # Initialization of the particles in the box
@@ -640,13 +645,13 @@ if __name__ == '__main__':
     
     PR_par = {}
     # Number of iterations of Potential retrieval alghoritm
-    PR_par['N_iter'] = 1
+    PR_par['N_iter'] = 25
     PR_par['damping'] = 0.05
-    PR_par['g_name'] = 'BD_sameopp_6_002'
-
+    PR_par['g_name'] = 'BD_sameopp_10_002'
+    PR_par['Replicate Particles'] = True
 
     
-    out_root = root_dir + '%s_%dD_%.1EMCS_ITER%03d/' % (PR_par['g_name'],MC_par['dim'],MC_par['N_mcs'],PR_par['N_iter'])
+    out_root = root_dir + '%s_%dD_%.1EMCS_ITER%03d_L=%d/' % (PR_par['g_name'],MC_par['dim'],MC_par['N_mcs'],PR_par['N_iter'],MC_par['L_box'])
     check_folders_existence(out_root)
 
     init_conf_file()
@@ -657,7 +662,10 @@ if __name__ == '__main__':
     g_th_r,g_th['same'],g_th['opp'] = np.loadtxt(root_dir + 'g_%s.txt' % PR_par['g_name'], dtype = 'float', unpack = 'true')
     g_th['unsigned'] = (g_th['same'] + g_th['opp']) * 0.5
     g_dr = g_th_r[1] - g_th_r[0]
-    g_r_max = np.min([g_th_r[-1],MC_par['L_box'] / 2.0])
+    if PR_par['Replicate Particles']:
+        g_r_max = np.min([g_th_r[-1],MC_par['L_box'] / 2.0])
+    else:
+        g_r_max = np.min([g_th_r[-1],MC_par['L_box'] / 4.0])
     if MC_par['dim'] == 2:
         S_th['same'] = g_th['same'] * 2 * np.pi * g_th_r
         S_th['opp'] = g_th['opp'] * 2 * np.pi * g_th_r
@@ -673,8 +681,11 @@ if __name__ == '__main__':
     v_bin = np.append(0,np.append(0.5*(v_r[1:]+v_r[:-1]),10*MC_par['L_box']))
     v_trial = {}
     g_th['same'][g_th['same'] <=0] = 1e-10 # to account for the infinity at the beginning
-    v_trial['same'] = - np.log(g_th['same']) 
-    v_trial['opp'] = - np.log(g_th['opp']) # boost interaction between opp sign
+    v_trial['same'] = - np.log(g_th['same'])
+    v_trial['opp'] = - np.log(g_th['opp'])
+#    for kind in v_trial: # decrease coherence
+#        v_trial[kind][v_r > 0.5] /= v_r[v_r > 0.5]
+
 #    for kind in v_trial:
 #        v_trial[kind] = straighten_pot(v_r,v_trial[kind])
 #    v_trial = np.append(v_trial[:100],v_trial[100:]/v_r[100:]) 
