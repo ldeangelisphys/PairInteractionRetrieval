@@ -168,7 +168,7 @@ def pair_correlation_function_2D(x, y, sign, S, rMax, dr, kind = 'unsigned'):
         g_average[i] = np.mean(g[:, i]) / (np.pi * (rOuter**2 - rInner**2)) 
 	
     return (g_average, S_average, radii, interior_indices)    
-    
+#%%    
 def replicate_particles(particles):
     shifts = list(itertools.product([-1,0,1], repeat = MC_par['dim']))
     more_particles = np.empty((0,MC_par['dim'] + 1 * MC_par['charge']))
@@ -178,8 +178,20 @@ def replicate_particles(particles):
             delta = np.append(delta,0)
         more_particles = np.append(more_particles,particles + delta,axis = 0)
     return more_particles
+#%%
+def replicate_particles_cut(particles, r_cut):
+    
+    more_particles_cut = replicate_particles(particles)
+    ctr = 0.5 * MC_par['L_box']
+    lim = r_cut + 0.5 * MC_par['L_box']
+    
+    for i in range(MC_par['dim']):  # cut away particles further than lim from ctr
+        more_particles_cut = more_particles_cut[np.abs(more_particles_cut[:,i] - ctr) < lim]
 
+    
+    return more_particles_cut
 
+#%%
 def pair_correlation_function_3D(x, y, z, S, rMax, dr):
     """Compute the three-dimensional pair correlation function for a set of
     spherical particles contained in a cube with side length S.  This simple
@@ -411,29 +423,29 @@ def calc_and_plot_g_r(particles,n,iteration, kind = 'unsigned', save_plot = Fals
     
     #If needed replicate the system that I considered periodic
     if PR_par['Replicate Particles']:
-        more_particles = replicate_particles(particles)
-        S_factor = 3.0
+        more_particles = replicate_particles_cut(particles, g_r_max)
+        S = MC_par['L_box'] + 2 * g_r_max
     else:
         more_particles = particles
-        S_factor = 1.0
+        S = MC_par['L_box']
         
     if MC_par['dim'] == 3:
         if MC_par['charge']:
             [xp,yp,zp,sp] = np.transpose(more_particles)
             # Calculate pair correlation function
-            g_meas,S_meas,r_meas_Sg,_ = pair_correlation_function_3D(xp,yp,zp,MC_par['L_box']*S_factor,9.75,0.5,kind)
+            g_meas,S_meas,r_meas_Sg,_ = pair_correlation_function_3D(xp,yp,zp,S,9.75,0.5,kind)
         else:
             [xp,yp,zp] = np.transpose(more_particles)
             # Calculate pair correlation function
-            g_meas,S_meas,r_meas_Sg,_ = pair_correlation_function_3D(xp,yp,zp,MC_par['L_box']*S_factor,9.75,0.5,kind)
+            g_meas,S_meas,r_meas_Sg,_ = pair_correlation_function_3D(xp,yp,zp,S,9.75,0.5,kind)
         
     elif MC_par['dim'] == 2:
         if MC_par['charge']:
             [xp,yp,sp] = np.transpose(more_particles)
-            g_meas,S_meas,r_meas_Sg,_ = pair_correlation_function_2D(xp,yp,sp,MC_par['L_box']*S_factor,g_r_max,g_dr,kind)    # 3.0 due to periodic replication
+            g_meas,S_meas,r_meas_Sg,_ = pair_correlation_function_2D(xp,yp,sp,S,g_r_max,g_dr,kind)
         else:
             [xp,yp] = np.transpose(more_particles)
-            g_meas,S_meas,r_meas_Sg,_ = pair_correlation_function_2D(xp,yp,MC_par['L_box']*S_factor,g_r_max,g_dr,kind)    # 3.0 due to periodic replication
+            g_meas,S_meas,r_meas_Sg,_ = pair_correlation_function_2D(xp,yp,S,g_r_max,g_dr,kind)
     if save_plot:
         plt.figure(figsize = (7,4))
         plt.plot(r_meas_Sg,g_meas)
@@ -630,12 +642,12 @@ if __name__ == '__main__':
 #    Stheory.v *= 4 * np.pi * Stheory.r**2
     MC_par = {}    #A dictionary for all MC parameters
     MC_par['N_mcs'] = int(8.0e+5)
-    MC_par['L_box'] = 6
+    MC_par['L_box'] = 5
     MC_par['N_particles'] = int(MC_par['L_box']**2 * np.pi) # wavelength = 1, density of berrydennis
     MC_par['dim'] = 2  
     MC_par['dr_c'] = MC_par['L_box'] / np.power(MC_par['N_particles'],1.0/MC_par['dim'])
     # Monte Carlo Step at which I have convergence
-    MC_par['N_conv'] = 3e+5
+    MC_par['N_conv'] = 1e+5
     # MC steps to wait between saving observable
     MC_par['N_corr'] = 5e+3
     # Initialization of the particles in the box
@@ -645,9 +657,9 @@ if __name__ == '__main__':
     
     PR_par = {}
     # Number of iterations of Potential retrieval alghoritm
-    PR_par['N_iter'] = 25
+    PR_par['N_iter'] = 50
     PR_par['damping'] = 0.05
-    PR_par['g_name'] = 'BD_sameopp_10_002'
+    PR_par['g_name'] = 'BD_sameopp_6_01'
     PR_par['Replicate Particles'] = True
 
     
@@ -663,7 +675,7 @@ if __name__ == '__main__':
     g_th['unsigned'] = (g_th['same'] + g_th['opp']) * 0.5
     g_dr = g_th_r[1] - g_th_r[0]
     if PR_par['Replicate Particles']:
-        g_r_max = np.min([g_th_r[-1],MC_par['L_box'] / 2.0])
+        g_r_max = np.min([g_th_r[-1],MC_par['L_box'] / 1.5])
     else:
         g_r_max = np.min([g_th_r[-1],MC_par['L_box'] / 4.0])
     if MC_par['dim'] == 2:
