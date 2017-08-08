@@ -12,7 +12,7 @@ import sys
 import itertools
 import copy
 
-
+#%%
 class par:
     def __init__(self):
         self.r = 0
@@ -302,13 +302,13 @@ def lj(r):
     return 4*eps*((sigma/r)**12-(sigma/r)**6)   
   
 def calc_distances(elements,ref,R_cut):
-    
+    #%%
     starting_shape = np.shape(elements)
-    # Calculate the dx and dy in the next unit cell (+- L_box)
+    #%% Calculate the dx and dy in the next unit cell (+- L_box)
     delta2 = np.reshape((elements - ref)**2,-1)
     delta2_p = np.reshape((elements - ref + MC_par['L_box'])**2,-1)
     delta2_m = np.reshape((elements - ref - MC_par['L_box'])**2,-1)
-    # And take the distance that is minimum in each direction
+    #%% And take the distance that is minimum in each direction
     delta_min = np.min([delta2,delta2_p,delta2_m], axis = 0)
     # Reshape the array in the old form, so that we can work on it
     delta_min = np.reshape(delta_min,starting_shape)
@@ -330,14 +330,17 @@ def MC_step(particles,chosen_one,dr,R_cut,v):
     #%% Apply periodic Boundary conditions and exclude particles outside R_cut
     # Particles at a distance > R_cut don't contribute to the energy
     dE = 0
+    #%%
     if(MC_par['charge']):
         for charge_prod in ['same','opp']:
-            sel_other_particles = other_particles[other_particles[:,-1] * old_particle[-1] == term_dict[charge_prod]]
-            old_distances = calc_distances(sel_other_particles,old_particle,R_cut)   
-            new_distances = calc_distances(sel_other_particles,new_particle,R_cut)
+            #%%
+            sel_other_particles = other_particles[other_particles[:,-1] * old_particle[-1] == word2sign[charge_prod]]
+            old_distances = calc_distances(sel_other_particles[:,:MC_par['dim']],old_particle[:MC_par['dim']],R_cut)   
+            new_distances = calc_distances(sel_other_particles[:,:MC_par['dim']],new_particle[:MC_par['dim']],R_cut)
             old_histo,bins  = np.histogram(old_distances, bins = v_bin)
             new_histo,bins  = np.histogram(new_distances, bins = v_bin)
             dE += np.sum((new_histo-old_histo)*v[charge_prod])
+            #%%
     else:
         old_distances = calc_distances(other_particles,old_particle,R_cut)   
         new_distances = calc_distances(other_particles,new_particle,R_cut)
@@ -437,12 +440,13 @@ def calc_and_plot_g_r(particles,n,iteration, kind = 'unsigned', save_plot = True
         plt.close('all')
     
     return g_meas, S_meas, r_meas_Sg
-     
+ #%%    
 def plot_convergence(Energies,coeffs,iteration):
     xscale = int(np.log10(MC_par['N_mcs'])) + 4
     plt.figure(figsize = (xscale,6))
+    cmax = np.max(coeffs)
     for c in coeffs:
-        plt.plot(Energies[c], label = c, color = cm.gnuplot(c), linewidth = 2)
+        plt.plot(Energies[c], label = c, color = cm.gnuplot(c/cmax), linewidth = 2)
         plt.xscale('log')
     plt.legend(loc = 3)
     plt.xlabel('# iteration')
@@ -531,6 +535,7 @@ def calc_dist_average(g_list, r, name, iteration):
     plt.errorbar(r,g_av,yerr = g_std, marker = 'o', markersize = 3, linestyle = 'None', label = 'measured', zorder = 1)
     plt.xlabel(r'$r$')
     plt.ylabel(r'$%s_{%s}(r)$' % (what,kind))
+    plt.xlim([0,g_r_max])
     plt.figtext(0.99, 0.99, git_v, fontsize = 8, ha = 'right', va = 'top')
     plt.legend()
     plt.savefig(out_root + 'iters_output/%s_av_%03d.png' % (name,iteration), dpi = 300)
@@ -551,12 +556,11 @@ def straighten_pot(fr,f):
     f_temp = np.append(f_temp,0)
     f_func = interp1d(r_temp,f_temp, kind = 'linear')
     
-    new_r = np.arange(0.005,20,0.01)
-    new_f = f_func(new_r)
+    new_f = f_func(fr)
     
-    return new_r,new_f
+    return new_f
     #%%
-def save_and_plot_new_potential(new_v, kind, vlist):
+def save_and_plot_new_potential(new_v, kind, v_list):
     
     np.savetxt(out_root + 'iters_output/pot_' + kind + '%03d.txt' % (k+1),np.transpose([v_r,new_v[kind]]), fmt = '%.04f', delimiter = '\t', header = 'r\t\tV(r)')
             
@@ -568,6 +572,7 @@ def save_and_plot_new_potential(new_v, kind, vlist):
         plt.plot(v_r[1:],vv[kind][1:], label = 'iteration #%03d' % (i*to_skip))
         plt.xlabel(r'$r$')
         plt.ylabel(r'$V_{%s}(r)$' % kind)
+    plt.xlim([0,g_r_max])
     plt.legend()    
     plt.savefig(out_root + 'iters_output/pot_%s_000-%03d.png' % (kind,k+1),dpi = 300)
     plt.close('all')
@@ -619,25 +624,25 @@ if __name__ == '__main__':
 #    Stheory.r,Stheory.v = get_g(root_dir + 'g_paper.txt')
 #    Stheory.v *= 4 * np.pi * Stheory.r**2
     MC_par = {}    #A dictionary for all MC parameters
-    MC_par['N_mcs'] = int(1e+4)
-    MC_par['L_box'] = 20
+    MC_par['N_mcs'] = int(7e+5)
+    MC_par['L_box'] = 5
     MC_par['N_particles'] = int(MC_par['L_box']**2 * np.pi) # wavelength = 1, density of berrydennis
     MC_par['dim'] = 2  
-    MC_par['dr_c'] = 0.2 * MC_par['L_box'] / np.power(MC_par['N_particles'],1.0/MC_par['dim'])
+    MC_par['dr_c'] = MC_par['L_box'] / np.power(MC_par['N_particles'],1.0/MC_par['dim'])
     # Monte Carlo Step at which I have convergence
-    MC_par['N_conv'] = 1e+3
+    MC_par['N_conv'] = 1e+5
     # MC steps to wait between saving observable
-    MC_par['N_corr'] = 1000
+    MC_par['N_corr'] = 5e+3
     # Initialization of the particles in the box
     MC_par['init_conf'] = 'noisy_charged_array'
     MC_par['charge'] = True
-    term_dict = {'same':1,'opp':-1}
+    word2sign = {'same':1,'opp':-1}
     
     PR_par = {}
     # Number of iterations of Potential retrieval alghoritm
     PR_par['N_iter'] = 1
-    PR_par['damping'] = 0.5
-    PR_par['g_name'] = 'BD_sameopp02'
+    PR_par['damping'] = 0.05
+    PR_par['g_name'] = 'BD_sameopp_6_002'
 
 
     
@@ -652,7 +657,7 @@ if __name__ == '__main__':
     g_th_r,g_th['same'],g_th['opp'] = np.loadtxt(root_dir + 'g_%s.txt' % PR_par['g_name'], dtype = 'float', unpack = 'true')
     g_th['unsigned'] = (g_th['same'] + g_th['opp']) * 0.5
     g_dr = g_th_r[1] - g_th_r[0]
-    g_r_max = g_th_r[-1]
+    g_r_max = np.min([g_th_r[-1],MC_par['L_box'] / 2.0])
     if MC_par['dim'] == 2:
         S_th['same'] = g_th['same'] * 2 * np.pi * g_th_r
         S_th['opp'] = g_th['opp'] * 2 * np.pi * g_th_r
@@ -665,18 +670,19 @@ if __name__ == '__main__':
     # Define a potential
 #    v_r,v_trial = get_g(root_dir + 'vtest.txt')
     v_r = g_th_r
-    v_bin = np.append(0,np.append(0.5*(v_r[1:]+v_r[:-1]),2*MC_par['L_box']))
+    v_bin = np.append(0,np.append(0.5*(v_r[1:]+v_r[:-1]),10*MC_par['L_box']))
     v_trial = {}
     g_th['same'][g_th['same'] <=0] = 1e-10 # to account for the infinity at the beginning
     v_trial['same'] = - np.log(g_th['same']) 
-    v_trial['opp'] = - np.log(g_th['opp'])   # to account for the infinity at the beginning
-#    v_r,v_trial = straighten_pot(v_r,v_trial)
+    v_trial['opp'] = - np.log(g_th['opp']) # boost interaction between opp sign
+#    for kind in v_trial:
+#        v_trial[kind] = straighten_pot(v_r,v_trial[kind])
 #    v_trial = np.append(v_trial[:100],v_trial[100:]/v_r[100:]) 
     plot_pot(v_r,v_trial)
 
 
     # If I want to try different dr coefficients
-    coeffs = [MC_par['dr_c']]
+    coeffs = np.array([0.5]) * MC_par['dr_c']
     v_list = []
     v_list.append(v_trial)
     
@@ -706,18 +712,18 @@ if __name__ == '__main__':
             Sav,Sstd = calc_dist_average(S_lists[kind],g_meas_r,'S_' + kind,k+1)
         
     #%% Define what part of the calc g can be compared to the known one
-        r_min = np.where(np.abs(g_meas_r - g_th_r[0]) < 1e-4)[0][0]
-        r_max = np.where(np.abs(g_meas_r - g_th_r[-1]) < 1e-4)[0][0] + 1
+        r_min = np.where(np.abs(g_meas_r[0] - g_th_r) < 1e-4)[0][0]
+        r_max = np.where(np.abs(g_meas_r[-1] - g_th_r) < 1e-4)[0][0] + 1
     #%% Perform the retrieval alghorithm
         new_v = {}
-        for kind in ['same']:       
+        for kind in ['same','opp']:       
             S_array = np.array([single_S[r_min:r_max] for single_S in S_lists[kind]])
             S_av = np.average(S_array, axis = 0)
             S_cov = np.cov(S_array,rowvar = 0)
         
-            delta_S = S_av - S_th[kind]
+            delta_S = S_av - S_th[kind][r_min:r_max]
                 
-            for nskip in range(1,8):
+            for nskip in range(0,8):
                 try:
                     delta_v = np.linalg.solve(S_cov[nskip:,nskip:],delta_S[nskip:]) * PR_par['damping']
                     break
@@ -725,12 +731,16 @@ if __name__ == '__main__':
                     continue
             
             new_v[kind] = copy.copy(v_list[k][kind])
-            new_v[kind][nskip:] += delta_v
+            new_v[kind][r_min + nskip:r_max] += delta_v
             
+                    
+        v_list.append(new_v)
+        
+        
+        for kind in ['same','opp']:
             
             # Save the new potential and plot it with the others (max 10 others)
             save_and_plot_new_potential(new_v, kind, v_list)
             
-        v_list.append(new_v)
         #%%            
 
