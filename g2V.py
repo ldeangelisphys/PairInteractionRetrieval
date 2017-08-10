@@ -645,7 +645,7 @@ if __name__ == '__main__':
 #    Stheory.r,Stheory.v = get_g(root_dir + 'g_paper.txt')
 #    Stheory.v *= 4 * np.pi * Stheory.r**2
     MC_par = {}    #A dictionary for all MC parameters
-    MC_par['N_mcs'] = int(1e+6)
+    MC_par['N_mcs'] = int(1e+7)
     MC_par['L_box'] = 10
     MC_par['N_particles'] = int(MC_par['L_box']**2 * np.pi) # wavelength = 1, density of berrydennis
     MC_par['dim'] = 2  
@@ -662,12 +662,12 @@ if __name__ == '__main__':
     
     PR_par = {}
     # Number of iterations of Potential retrieval alghoritm
-    PR_par['N_iter'] = 2
+    PR_par['N_iter'] = 1
     PR_par['damping'] = 0.02
     PR_par['g_name'] = 'BD_sameopp_6_002'
     PR_par['Replicate Particles'] = True
     PR_par['Plot all g'] = False
-    PR_par['Zero potential from'] = 2.0
+    PR_par['Zero potential from'] = 3.8
     PR_par['Trial Potential'] = ['BD_sameopp_6_005/L=81.0E+06MCS_060ITER/',60]
 
     sim_details = '%s/L=%d_%.1EMCS_%03dITER/' % (PR_par['g_name'],MC_par['L_box'],MC_par['N_mcs'],PR_par['N_iter'])
@@ -712,19 +712,21 @@ if __name__ == '__main__':
         pot_dir = root_dir + PR_par['Trial Potential'][0] + 'iters_output/'
         #%%
         for kind in ['opp','same']:
-            
+            #%%
             pot_file = pot_dir + 'pot_%s%03d.txt' % (kind,PR_par['Trial Potential'][1])
             r_temp,v_temp = np.loadtxt(pot_file, unpack = True)
             # Add points equal to the neighbours below range and zeros above
-            below_range = g_th_r < r_temp[0]
-            above_range = g_th_r > r_temp[-1]
-            r_temp = np.append(g_th_r[below_range],r_temp)
-            v_temp = np.append(v_temp[0] * np.ones(len(g_th_r[below_range])),v_temp)
-            r_temp = np.append(r_temp,g_th_r[above_range])
-            v_temp = np.append(v_temp,np.zeros(len(g_th_r[above_range])))
+            below_range = v_r < r_temp[0]
+            above_range = v_r > r_temp[-1]
+            r_temp = np.append(v_r[below_range],r_temp)
+            v_temp = np.append(v_temp[0] * np.ones(len(v_r[below_range])),v_temp)
+            r_temp = np.append(r_temp,v_r[above_range])
+            v_temp = np.append(v_temp,np.zeros(len(v_r[above_range])))
             v_func = interp1d(r_temp,v_temp)
-            v_trial[kind] = v_func(g_th_r)
-            plt.plot(g_th_r,v_trial[kind])
+            v_trial[kind] = v_func(v_r)
+            v_trial[kind][v_r > PR_par['Zero potential from']] = 0
+            plt.plot(v_r,v_trial[kind])
+
             #%%
 
 
