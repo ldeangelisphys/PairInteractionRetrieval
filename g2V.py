@@ -22,8 +22,10 @@ class par:
 def check_folders_existence(f_path):    
     
     folders_list = ['', 'iters_output']
-    for k in range(PR_par['N_iter']):
-        folders_list.append('iters_output/all_g_%03d' % (k+1))
+
+    if PR_par['Plot all g']: # If I need to plot all the g(r) prepare folders
+        for k in range(PR_par['N_iter']):
+            folders_list.append('iters_output/all_g_%03d' % (k+1))
 
 
     for folder in folders_list:        
@@ -407,7 +409,7 @@ def run_montecarlo(v,iteration , n_run, dr_coeff = 0.58):
             ## After convergence calc and save g
             if(n > MC_par['N_conv']):
                 for kind in ['same','opp']:
-                    g_meas, S_meas, r_meas_Sg = calc_and_plot_g_r(particles,n,iteration,kind = kind)
+                    g_meas, S_meas, r_meas_Sg = calc_and_plot_g_r(particles,n,iteration,kind = kind, save_plot = PR_par['Plot all g'])
                     g_lists[kind].append(g_meas)
                     S_lists[kind].append(S_meas)
             
@@ -502,23 +504,23 @@ def plot_conf(particles,iteration):
     #%%
 def check_correlation_at_convergence(E_conv, N_display = 20000):
 
-    plt.plot(range(MC_par['N_conv'],MC_par['N_conv']+N_display),E_conv[:N_display])
+    plt.plot(np.arange(MC_par['N_conv'],MC_par['N_conv']+N_display),E_conv[:N_display])
     plt.xlabel('# MCstep')
     plt.ylabel('Energy')
     plt.figtext(0.99, 0.99, git_v, fontsize = 8, ha = 'right', va = 'top')
     plt.savefig(out_root + 'after_convergence_Nmcs%d_dr%.2f.png' % (MC_par['N_mcs'],MC_par['dr_c']), dpi = 600)
     plt.close('all')
     
-    interval = MC_par['N_mcs']/5
+    hinterval = int(MC_par['N_mcs']/5.0/2.0)
     shift_lim = 10000
-    center = len(E_conv)/2
-    sample = E_conv[center-interval/2:center+interval/2]
+    center = int(len(E_conv)/2.0)
+    sample = E_conv[center-hinterval:center+hinterval]
     corr = []
     shift = []
-    for i in range(center-interval/2 - shift_lim, center-interval/2 + shift_lim):
-        c = np.corrcoef(E_conv[i:interval+i],sample)
+    for i in range(center-hinterval - shift_lim, center - hinterval + shift_lim):
+        c = np.corrcoef(E_conv[i:2*hinterval+i],sample)
         corr.append(c[0,1])
-        shift.append(i - center + interval/2)
+        shift.append(i - center + hinterval)
     
     minorLocator = MultipleLocator(1000)
     majorLocator = MultipleLocator(5000)
@@ -643,28 +645,31 @@ if __name__ == '__main__':
 #    Stheory.r,Stheory.v = get_g(root_dir + 'g_paper.txt')
 #    Stheory.v *= 4 * np.pi * Stheory.r**2
     MC_par = {}    #A dictionary for all MC parameters
-    MC_par['N_mcs'] = int(1.0e+6)
-    MC_par['L_box'] = 8
+    MC_par['N_mcs'] = int(1.5e+6)
+    MC_par['L_box'] = 10
     MC_par['N_particles'] = int(MC_par['L_box']**2 * np.pi) # wavelength = 1, density of berrydennis
     MC_par['dim'] = 2  
     MC_par['dr_c'] = MC_par['L_box'] / np.power(MC_par['N_particles'],1.0/MC_par['dim'])
     # Monte Carlo Step at which I have convergence
     MC_par['N_conv'] = 1e+5
     # MC steps to wait between saving observable
-    MC_par['N_corr'] = 5e+3
+    MC_par['N_corr'] = 1e+4
     # Initialization of the particles in the box
     MC_par['init_conf'] = 'noisy_charged_array'
     MC_par['charge'] = True
+    MC_par['check correlation at convergence'] = True
     word2sign = {'same':1,'opp':-1}
     
     PR_par = {}
     # Number of iterations of Potential retrieval alghoritm
-    PR_par['N_iter'] = 60
+    PR_par['N_iter'] = 1
     PR_par['damping'] = 0.02
-    PR_par['g_name'] = 'BD_sameopp_6_005'
+    PR_par['g_name'] = 'BD_sameopp_6_002'
     PR_par['Replicate Particles'] = True
+    PR_par['Plot all g'] = False
+    PR_par['Zero potential from'] = 2.0
 
-    sim_details = '%s_%dD_%.1EMCS_ITER%03d_L=%d/' % (PR_par['g_name'],MC_par['dim'],MC_par['N_mcs'],PR_par['N_iter'],MC_par['L_box'])
+    sim_details = '%s/L=%d_%.1EMCS_%03dITER/' % (PR_par['g_name'],MC_par['L_box'],MC_par['N_mcs'],PR_par['N_iter'])
     out_root = root_dir + sim_details
     check_folders_existence(out_root)
     print('Working on %s' % sim_details[:-1])
@@ -699,7 +704,7 @@ if __name__ == '__main__':
     v_trial['same'] = - np.log(g_th['same'])
     v_trial['opp'] = - np.log(g_th['opp'])
     for kind in v_trial: # decrease coherence
-        v_trial[kind][v_r > 2.5] = 0
+        v_trial[kind][v_r > PR_par['Zero potential from']] = 0
 
 #    for kind in v_trial:
 #        v_trial[kind] = straighten_pot(v_r,v_trial[kind])
@@ -727,10 +732,11 @@ if __name__ == '__main__':
             Energies[c] = E
             
     #%% Plot the convergence test
-        plot_convergence(Energies,coeffs, k+1)
+        if MC_par['check correlation at convergence']:
+            plot_convergence(Energies,coeffs, k+1)
         
     #%% Correlate after convergence
-    #    check_correlation_at_convergence(Energies[dr_c][N_conv:])
+        check_correlation_at_convergence(Energies[c][int(MC_par['N_conv']):], N_display = 500 * MC_par['L_box']**MC_par['dim'])
     
     #%% Save the statistical average of g
         for kind in g_lists:    
