@@ -170,7 +170,7 @@ def pair_correlation_function_2D(x, y, sign, S, rMax, dr, kind = 'unsigned'):
     return (g_average, S_average, radii, interior_indices)    
 #%%    
 def replicate_particles(particles):
-    shifts = list(itertools.product([-1,0,1], repeat = MC_par['dim']))
+    shifts = list(itertools.product([0,1,2], repeat = MC_par['dim']))
     more_particles = np.empty((0,MC_par['dim'] + 1 * MC_par['charge']))
     for s in shifts:
         delta = MC_par['L_box']*np.array(s)
@@ -182,12 +182,14 @@ def replicate_particles(particles):
 def replicate_particles_cut(particles, r_cut):
     
     more_particles_cut = replicate_particles(particles)
-    ctr = 0.5 * MC_par['L_box']
-    lim = r_cut + 0.5 * MC_par['L_box']
+    ctr = 1.5 * MC_par['L_box']
+    r_lim = r_cut + 0.5 * MC_par['L_box']
     
     for i in range(MC_par['dim']):  # cut away particles further than lim from ctr
-        more_particles_cut = more_particles_cut[np.abs(more_particles_cut[:,i] - ctr) < lim]
+        more_particles_cut = more_particles_cut[np.abs(more_particles_cut[:,i] - ctr) < r_lim]
 
+    for i in range(MC_par['dim']):
+        more_particles_cut[:,i] -= (MC_par['L_box'] - r_cut)
     
     return more_particles_cut
 
@@ -378,7 +380,7 @@ def run_montecarlo(v,iteration , n_run, dr_coeff = 0.58):
     
     start = time.time()
 #%%
-    R_cut = v_r[-1]  # TODO
+    R_cut = g_r_max  # TODO
     #v_f = interp1d(r,v)
 
     g_lists = {'same':[],'opp':[]} 
@@ -641,8 +643,8 @@ if __name__ == '__main__':
 #    Stheory.r,Stheory.v = get_g(root_dir + 'g_paper.txt')
 #    Stheory.v *= 4 * np.pi * Stheory.r**2
     MC_par = {}    #A dictionary for all MC parameters
-    MC_par['N_mcs'] = int(8.0e+5)
-    MC_par['L_box'] = 5
+    MC_par['N_mcs'] = int(1.0e+6)
+    MC_par['L_box'] = 8
     MC_par['N_particles'] = int(MC_par['L_box']**2 * np.pi) # wavelength = 1, density of berrydennis
     MC_par['dim'] = 2  
     MC_par['dr_c'] = MC_par['L_box'] / np.power(MC_par['N_particles'],1.0/MC_par['dim'])
@@ -657,14 +659,15 @@ if __name__ == '__main__':
     
     PR_par = {}
     # Number of iterations of Potential retrieval alghoritm
-    PR_par['N_iter'] = 50
-    PR_par['damping'] = 0.05
-    PR_par['g_name'] = 'BD_sameopp_6_01'
+    PR_par['N_iter'] = 60
+    PR_par['damping'] = 0.02
+    PR_par['g_name'] = 'BD_sameopp_6_005'
     PR_par['Replicate Particles'] = True
 
-    
-    out_root = root_dir + '%s_%dD_%.1EMCS_ITER%03d_L=%d/' % (PR_par['g_name'],MC_par['dim'],MC_par['N_mcs'],PR_par['N_iter'],MC_par['L_box'])
+    sim_details = '%s_%dD_%.1EMCS_ITER%03d_L=%d/' % (PR_par['g_name'],MC_par['dim'],MC_par['N_mcs'],PR_par['N_iter'],MC_par['L_box'])
+    out_root = root_dir + sim_details
     check_folders_existence(out_root)
+    print('Working on %s' % sim_details[:-1])
 
     init_conf_file()
 
@@ -675,7 +678,7 @@ if __name__ == '__main__':
     g_th['unsigned'] = (g_th['same'] + g_th['opp']) * 0.5
     g_dr = g_th_r[1] - g_th_r[0]
     if PR_par['Replicate Particles']:
-        g_r_max = np.min([g_th_r[-1],MC_par['L_box'] / 1.5])
+        g_r_max = np.min([g_th_r[-1],MC_par['L_box'] / 2.0])
     else:
         g_r_max = np.min([g_th_r[-1],MC_par['L_box'] / 4.0])
     if MC_par['dim'] == 2:
@@ -695,8 +698,8 @@ if __name__ == '__main__':
     g_th['same'][g_th['same'] <=0] = 1e-10 # to account for the infinity at the beginning
     v_trial['same'] = - np.log(g_th['same'])
     v_trial['opp'] = - np.log(g_th['opp'])
-#    for kind in v_trial: # decrease coherence
-#        v_trial[kind][v_r > 0.5] /= v_r[v_r > 0.5]
+    for kind in v_trial: # decrease coherence
+        v_trial[kind][v_r > 2.5] = 0
 
 #    for kind in v_trial:
 #        v_trial[kind] = straighten_pot(v_r,v_trial[kind])
