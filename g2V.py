@@ -657,18 +657,18 @@ if __name__ == '__main__':
     # Initialization of the particles in the box
     MC_par['init_conf'] = 'noisy_charged_array'
     MC_par['charge'] = True
-    MC_par['check correlation at convergence'] = True
+    MC_par['check correlation at convergence'] = False
     word2sign = {'same':1,'opp':-1}
     
     PR_par = {}
     # Number of iterations of Potential retrieval alghoritm
     PR_par['N_iter'] = 1
-    PR_par['damping'] = 0.02
+    PR_par['damping'] = 0.01
     PR_par['g_name'] = 'BD_sameopp_6_002'
     PR_par['Replicate Particles'] = True
     PR_par['Plot all g'] = False
-    PR_par['Zero potential from'] = 3.8
-    PR_par['Trial Potential'] = ['BD_sameopp_6_005/L=81.0E+06MCS_060ITER/',60]
+    PR_par['Zero potential from'] = 100
+    PR_par['Trial Potential'] = 'Mean-Force'#['BD_sameopp_6_005/L=81.0E+06MCS_060ITER/',60]
 
     sim_details = '%s/L=%d_%.1EMCS_%03dITER/' % (PR_par['g_name'],MC_par['L_box'],MC_par['N_mcs'],PR_par['N_iter'])
     out_root = root_dir + sim_details
@@ -713,7 +713,7 @@ if __name__ == '__main__':
         #%%
         for kind in ['opp','same']:
             #%%
-            pot_file = pot_dir + 'pot_%s%03d.txt' % (kind,PR_par['Trial Potential'][1])
+            pot_file = pot_dir + 'pot_%s%03d_corr.txt' % (kind,PR_par['Trial Potential'][1])
             r_temp,v_temp = np.loadtxt(pot_file, unpack = True)
             # Add points equal to the neighbours below range and zeros above
             below_range = v_r < r_temp[0]
@@ -721,12 +721,11 @@ if __name__ == '__main__':
             r_temp = np.append(v_r[below_range],r_temp)
             v_temp = np.append(v_temp[0] * np.ones(len(v_r[below_range])),v_temp)
             r_temp = np.append(r_temp,v_r[above_range])
-            v_temp = np.append(v_temp,np.zeros(len(v_r[above_range])))
+            v_temp = np.append(v_temp,v_temp[-1] * np.ones(len(v_r[above_range])))
             v_func = interp1d(r_temp,v_temp)
             v_trial[kind] = v_func(v_r)
-            v_trial[kind][v_r > PR_par['Zero potential from']] = 0
-            plt.plot(v_r,v_trial[kind])
-
+            # Instead of zero use last value
+#            v_trial[kind][v_r > PR_par['Zero potential from']] = v_trial[kind][v_r > PR_par['Zero potential from']][0]
             #%%
 
 
@@ -756,11 +755,11 @@ if __name__ == '__main__':
             Energies[c] = E
             
     #%% Plot the convergence test
-        if MC_par['check correlation at convergence']:
-            plot_convergence(Energies,coeffs, k+1)
+        plot_convergence(Energies,coeffs, k+1)
         
     #%% Correlate after convergence
-        check_correlation_at_convergence(Energies[c][int(MC_par['N_conv']):], N_display = 500 * MC_par['L_box']**MC_par['dim'])
+        if MC_par['check correlation at convergence']:
+            check_correlation_at_convergence(Energies[c][int(MC_par['N_conv']):], N_display = 500 * MC_par['L_box']**MC_par['dim'])
     
     #%% Save the statistical average of g
         for kind in g_lists:    
