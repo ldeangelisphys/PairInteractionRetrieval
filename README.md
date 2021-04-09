@@ -1,0 +1,3 @@
+# PairInteractionRetrieval
+
+This software allows to estimate the interaction potential for a system of interacting particles. It was used to produce the results presented in https:\\doi.....
